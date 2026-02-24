@@ -418,13 +418,13 @@
                 name: 'Neon Flockstorm',
                 config: {
                     engineTimeScale: 1.0,
-                    density: 520,
+                    density: 260,
                     size: 4.0,
-                    'max-neighbors': 4,
+                    'max-neighbors': 3,
                     'density-threshold': 35,
-                    distance: 140,
-                    gravity: 0.18,
-                    repel: 1.5,
+                    distance: 130,
+                    gravity: 0.15,
+                    repel: 1.3,
                     wrap: true,
                     well: false,
                     vortex: false,
@@ -434,7 +434,7 @@
                     'bg-hue': 220,
                     'diamond-bloom': 18,
                     'glow-luminance': 0.05,
-                    'pulse-speed': 4,
+                    'pulse-speed': 3,
                     symmetry: 2,
                     crt: false,
                     additive: true,
@@ -442,7 +442,7 @@
                     chromatic: true,
                     virus: false,
                     kinetic: true,
-                    trail: true,
+                    trail: false,
                     fill: true,
                     color: true,
                     shockwave: true,
@@ -646,13 +646,13 @@
                 name: 'Quantum Weave',
                 config: {
                     engineTimeScale: 1.0,
-                    density: 400,
+                    density: 250,
                     size: 4.2,
-                    'max-neighbors': 6,
-                    'density-threshold': 50,
-                    distance: 190,
-                    gravity: 0.16,
-                    repel: 1.7,
+                    'max-neighbors': 3,
+                    'density-threshold': 45,
+                    distance: 150,
+                    gravity: 0.13,
+                    repel: 1.4,
                     wrap: false,
                     well: false,
                     vortex: false,
@@ -662,8 +662,8 @@
                     'bg-hue': 260,
                     'diamond-bloom': 18,
                     'glow-luminance': 0.04,
-                    'pulse-speed': 4,
-                    symmetry: 3,
+                    'pulse-speed': 3,
+                    symmetry: 2,
                     crt: false,
                     additive: false,
                     parallax: false,
@@ -1182,7 +1182,7 @@
                 const min = parseFloat(el.min);
                 const max = parseFloat(el.max);
                 const span = max - min;
-                const jitterAmount = span * 0.1;
+                const jitterAmount = span * 0.05;
                 value = base + (Math.random() - 0.5) * 2 * jitterAmount;
                 value = Math.max(min, Math.min(max, value));
                 const step = parseFloat(el.step || '1');
@@ -1201,8 +1201,16 @@
                 const toggleEl = document.getElementById(key + '-toggle');
 
                 if (sliderEl && sliderEl.type === 'range') {
-                    const jittered = jitterSliderValue(config[key], sliderEl);
-                    sliderEl.value = jittered;
+                    let value = jitterSliderValue(config[key], sliderEl);
+
+                    // Global safety caps for Chaos scenes
+                    if (key === 'density') value = Math.min(value, 260);
+                    if (key === 'distance') value = Math.min(value, 170);
+                    if (key === 'max-neighbors') value = Math.min(value, 3);
+                    if (key === 'symmetry') value = Math.min(value, 2);
+                    if (key === 'pulse-speed') value = Math.min(value, 4);
+
+                    sliderEl.value = value;
                     sliderEl.dispatchEvent(new Event('input'));
                 } else if (toggleEl && toggleEl.type === 'checkbox') {
                     toggleEl.checked = !!config[key];
