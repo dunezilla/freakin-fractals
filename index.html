@@ -1647,6 +1647,8 @@
         let gyro = { x: 0, y: 0 };
         let screenShake = 0;
         let pulsePhase = 0;
+        let smoothedBass = 0;
+        let smoothedAvg = 0;
 
         function handleOrientation(e) {
             gyro.x = e.gamma ? Math.max(-40, Math.min(40, e.gamma)) * 1.5 : 0;
@@ -2088,19 +2090,18 @@
                 audioHigh = Math.min(1.0, audioHigh * settings['audio-sensitivity']);
                 audioAvg = Math.min(1.0, audioAvg * settings['audio-sensitivity']);
 
-                // Modulate Visuals based on Audio
-                // Spike the bloom filter on heavy bass beats
-                if (audioBass > 0.6) {
-                    diamondBlur.blur = settings['diamond-bloom'] + (audioBass * 15);
-                    glowContainer.alpha = settings['glow-luminance'] + (audioBass * 0.2);
-                } else {
-                    diamondBlur.blur = settings['diamond-bloom'];
-                    glowContainer.alpha = settings['glow-luminance'];
-                }
+                // Smooth out the audio signals to prevent flickering
+                smoothedBass += (audioBass - smoothedBass) * 0.15;
+                smoothedAvg += (audioAvg - smoothedAvg) * 0.1;
+
+                // Modulate Visuals based on Audio (Smoothed)
+                // Gently pulse the bloom and glow instead of hard spiking
+                diamondBlur.blur = settings['diamond-bloom'] + (smoothedBass * 10);
+                glowContainer.alpha = settings['glow-luminance'] + (smoothedBass * 0.15);
 
                 // Accelerate particles when the overall volume is high
-                if (audioAvg > 0.2) {
-                    settings.engineTimeScale = 1.0 + (audioAvg * 2.0);
+                if (smoothedAvg > 0.1) {
+                    settings.engineTimeScale = 1.0 + (smoothedAvg * 1.5);
                 }
 
                 // Randomly trigger small shockwaves on very sharp high-hat/snare hits
