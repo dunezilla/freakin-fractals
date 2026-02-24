@@ -1678,7 +1678,7 @@
             gyro.y = e.beta ? Math.max(-40, Math.min(40, e.beta)) * 1.5 : 0;
         }
 
-        function playShatterSound() {
+        function playShatterSound(isImplosion = false) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const time = audioCtx.currentTime;
@@ -1686,13 +1686,17 @@
             const oscGain = audioCtx.createGain();
             osc.type = settings.virus ? 'sawtooth' : 'sine';
 
-            // Shorter duration and higher frequencies for a "click" and less bass
-            let dur = settings.bullet ? 0.2 : 0.1;
-            osc.frequency.setValueAtTime(settings.bullet ? 1000 : 1200, time);
-            osc.frequency.exponentialRampToValueAtTime(settings.bullet ? 900 : 800, time + dur);
+            // Water drop: fast upward frequency sweep, reversed for implosion
+            let dur = settings.bullet ? 0.3 : 0.15;
+            let startBase = settings.bullet ? 240 : 320;
+            let endBase = settings.bullet ? 550 : 750;
 
+            osc.frequency.setValueAtTime(isImplosion ? endBase : startBase, time);
+            osc.frequency.exponentialRampToValueAtTime(isImplosion ? startBase : endBase, time + 0.05);
+
+            // Fast percussive attack and decay
             oscGain.gain.setValueAtTime(0, time);
-            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.1 : 0.3, time + 0.02);
+            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.2 : 0.4, time + 0.01);
             oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
 
             osc.connect(oscGain); oscGain.connect(audioCtx.destination);
@@ -1780,7 +1784,7 @@
         app.view.addEventListener('contextmenu', e => e.preventDefault());
 
         function triggerShatter(x, y, isImplosion = false) {
-            playShatterSound();
+            playShatterSound(isImplosion);
             if (settings.bullet) settings.engineTimeScale = 0.08;
             if (settings.chromatic) screenShake = 15;
             if (settings.shockwave) shockwaves.push({ x, y, radius: 20, opacity: 1, infected: settings.virus, maxRadius: settings.shatterRadius });
