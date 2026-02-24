@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Freakin Fractals</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #020205;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; 
+        }
+        canvas { 
+            display: block; 
+            width: 100%; height: 100%;
+        }
+
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(10, 15, 30, 0.85); border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px; padding: 0; color: white;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9); backdrop-filter: blur(8px);
+            z-index: 100; user-select: none; width: 300px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        #ui-header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; background: rgba(255, 255, 255, 0.05);
+        }
+
+        #ui-content { padding: 0 20px 20px 20px; max-height: 80vh; overflow-y: auto; }
+        #ui-panel.minimized { width: 200px; }
+        #ui-panel.minimized #ui-content { max-height: 0; padding-bottom: 0; opacity: 0; pointer-events: none; }
+        #min-btn { font-size: 1rem; color: #88aaff; font-weight: bold; }
+
+        h2 { margin: 0; font-size: 1.1rem; color: #ffffff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+        h3 { margin: 15px 0 10px 0; font-size: 0.85rem; color: #88aaff; border-bottom: 1px solid rgba(136, 170, 255, 0.3); padding-bottom: 3px; text-transform: uppercase; letter-spacing: 1px;}
+
+        .control-group { margin-bottom: 12px; }
+        label { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 5px; color: #c0c0c0; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #88aaff; }
+        input[type="checkbox"] { cursor: pointer; accent-color: #88aaff; width: 16px; height: 16px; }
+        /* Color Picker Styling */
+        input[type="color"] {
+            appearance: none;
+            -webkit-appearance: none;
+            border: none; width: 30px; height: 20px; 
+            cursor: pointer; background: none; padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid #fff; border-radius: 4px; }
+        
+        button {
+            width: 100%; padding: 12px; margin-top: 15px; background: rgba(136, 170, 255, 0.1);
+            border: 1px solid #88aaff; color: #88aaff; cursor: pointer; border-radius: 4px; font-size: 0.8rem;
+            font-weight: bold; transition: background 0.2s;
+        }
+        button:active { background: rgba(136, 170, 255, 0.3); }
+
+        #snap-btn {
+            border-color: #ff00aa; color: #ff00aa; background: rgba(255, 0, 170, 0.1);
+        }
+
+        #fps-counter { font-family: 'Courier New', monospace; font-weight: bold; color: #00ff88; }
+        .mode-label { color: #00ff88 !important; font-weight: bold; }
+        .virus-label { color: #ff5566 !important; font-weight: bold; }
+        .wow-label { color: #ffbb00 !important; font-weight: bold; text-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
+        .bloom-label { color: #d4aaff !important; font-weight: bold; }
+        .crt-label { color: #ff00ff !important; font-weight: bold; text-shadow: 0 0 5px #ff00ff;}
+        .webgl-badge { color: #ff00aa; font-size: 0.7rem; float: right; border: 1px solid #ff00aa; padding: 2px 4px; border-radius: 4px;}
+        
+        .disabled-picker { opacity: 0.3; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <div id="ui-header">
+            <h2>Freakin Fractals <span class="webgl-badge">WEBGL</span></h2>
+            <div id="min-btn">✕</div>
+        </div>
+        
+        <div id="ui-content">
+            <h3>Performance</h3>
+            <div class="control-group">
+                <label>Real-time FPS: <span id="fps-counter">--</span></label>
+            </div>
+
+            <h3>Color Palette</h3>
+            <div class="control-group">
+                <label for="color-toggle" class="wow-label">Dynamic Rainbow: <input type="checkbox" id="color-toggle" checked></label>
+            </div>
+            <div id="custom-colors">
+                <div class="control-group">
+                    <label>Diamond Core: <input type="color" id="col-core" value="#00ffff"></label>
+                </div>
+                <div class="control-group">
+                    <label>Glow Color: <input type="color" id="col-glow" value="#0088ff"></label>
+                </div>
+                <div class="control-group">
+                    <label>Web Lines: <input type="color" id="col-line" value="#4488ff"></label>
+                </div>
+                <div class="control-group">
+                    <label>Triangle Fills: <input type="color" id="col-fill" value="#224488"></label>
+                </div>
+            </div>
+
+            <h3>Engine Settings</h3>
+            <div class="control-group">
+                <label for="density">Diamond Density: <span id="density-val">300</span></label>
+                <input type="range" id="density" min="20" max="3000" step="10" value="300"> 
+            </div>
+            <div class="control-group">
+                <label for="size">Diamond Size (Core): <span id="size-val">5.0</span></label>
+                <input type="range" id="size" min="1" max="15" step="0.5" value="5.0"> 
+            </div>
+            <div class="control-group">
+                <label for="max-neighbors">Web Complexity: <span id="max-neighbors-val">3</span></label>
+                <input type="range" id="max-neighbors" min="0" max="10" step="1" value="3"> 
+            </div>
+            <div class="control-group">
+                <label for="density-threshold">Cluster Limit: <span id="density-threshold-val">40</span></label>
+                <input type="range" id="density-threshold" min="10" max="100" step="5" value="40"> 
+            </div>
+            <div class="control-group">
+                <label for="distance">Web Integrity: <span id="distance-val">140</span></label>
+                <input type="range" id="distance" min="30" max="350" value="140">
+            </div>
+
+            <h3>Physics Modifiers</h3>
+            <div class="control-group">
+                <label for="gravity">Pointer Gravity: <span id="gravity-val">0.2</span></label>
+                <input type="range" id="gravity" min="0" max="0.3" step="0.01" value="0.2">
+            </div>
+            <div class="control-group">
+                <label for="repel">Pointer Repel: <span id="repel-val">1.8</span></label>
+                <input type="range" id="repel" min="0" max="10" step="0.1" value="1.8">
+            </div>
+            
+            <div class="control-group">
+                <label for="rain-toggle" style="color:#00aaff; font-weight:bold;">Rain Mode (Heavy): <input type="checkbox" id="rain-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="fire-toggle" style="color:#ffaa00; font-weight:bold;">Inferno Mode (Fire): <input type="checkbox" id="fire-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="flock-toggle" class="wow-label">Hive Mind (Birds): <input type="checkbox" id="flock-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="fluid-toggle" class="wow-label">Liquid Swarm: <input type="checkbox" id="fluid-toggle"></label>
+            </div>
+
+            <div class="control-group">
+                <label for="wrap-toggle" style="color:#fff;">Screen Wrap (Off=Bounce): <input type="checkbox" id="wrap-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="well-toggle" class="mode-label">Gravity Well Mode: <input type="checkbox" id="well-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="vortex-toggle">Orbital Vortex: <input type="checkbox" id="vortex-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="flow-toggle" class="wow-label">Magnetic Fluid (Flow): <input type="checkbox" id="flow-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="bullet-toggle">Bullet Time: <input type="checkbox" id="bullet-toggle" checked></label>
+            </div>
+
+            <h3>Visual Rendering</h3>
+            <div class="control-group">
+                <label for="light-mode-toggle" style="color:#fff;">Light Background: <input type="checkbox" id="light-mode-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="bg-hue" style="color:#fff;">Background Hue: <span id="bg-hue-val">0</span></label>
+                <input type="range" id="bg-hue" min="0" max="360" step="1" value="0"> 
+            </div>
+            
+            <div class="control-group">
+                <label for="diamond-bloom" class="bloom-label">Glow Radius (Size): <span id="diamond-bloom-val">12</span></label>
+                <input type="range" id="diamond-bloom" min="0" max="40" step="1" value="12"> 
+            </div>
+            <div class="control-group">
+                <label for="glow-luminance" class="bloom-label">Glow Luminance (Opacity): <span id="glow-luminance-val">0.03</span></label>
+                <input type="range" id="glow-luminance" min="0.0" max="1.0" step="0.01" value="0.03"> 
+            </div>
+            
+            <div class="control-group">
+                <label for="pulse-speed" class="bloom-label">Pulse Speed: <span id="pulse-speed-val">0</span></label>
+                <input type="range" id="pulse-speed" min="0" max="10" step="1" value="0"> 
+            </div>
+            <div class="control-group">
+                <label for="symmetry" class="wow-label">Symmetry (1, 4, 8): <span id="symmetry-val">1</span></label>
+                <input type="range" id="symmetry" min="1" max="3" step="1" value="1"> 
+            </div>
+
+            <div class="control-group">
+                <label for="crt-toggle" class="crt-label">CRT / Retro Mode: <input type="checkbox" id="crt-toggle"></label>
+            </div>
+
+            <div class="control-group">
+                <label for="additive-toggle" class="wow-label">Additive Supernova: <input type="checkbox" id="additive-toggle" checked></label>
+            </div>
+            <div class="control-group">
+                <label for="parallax-toggle" class="wow-label">Gyro 3D Parallax: <input type="checkbox" id="parallax-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="chromatic-toggle" class="wow-label">Chromatic Glitch: <input type="checkbox" id="chromatic-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="virus-toggle" class="virus-label">System Infection: <input type="checkbox" id="virus-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="kinetic-toggle">Kinetic Bioluminescence: <input type="checkbox" id="kinetic-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="trail-toggle">Motion Trails: <input type="checkbox" id="trail-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="fill-toggle">Fill Triangles: <input type="checkbox" id="fill-toggle" checked></label>
+            </div>
+            
+            <div class="control-group">
+                <label for="shockwave-toggle">Visual Shockwave: <input type="checkbox" id="shockwave-toggle"></label>
+            </div>
+
+            <button id="snap-btn">📸 Snap Icon</button>
+            <button id="reset-btn">Reset Factory Settings</button>
+        </div>
+    </div>
+
+    <script>
+        const app = new PIXI.Application({
+            resizeTo: window,
+            backgroundColor: 0x020205,
+            antialias: true,
+            resolution: window.devicePixelRatio || 1,
+            autoDensity: true,
+            preserveDrawingBuffer: true,
+            clearBeforeRender: false 
+        });
+        document.body.appendChild(app.view);
+
+        const fadeLayer = new PIXI.Graphics();
+        const webGraphics = new PIXI.Graphics();
+        const shockwaveGraphics = new PIXI.Graphics();
+        
+        const glowContainer = new PIXI.Container();
+        const particleContainer = new PIXI.Container();
+        
+        const mainStage = new PIXI.Container();
+        mainStage.addChild(fadeLayer);
+        mainStage.addChild(glowContainer); 
+        mainStage.addChild(webGraphics);
+        mainStage.addChild(particleContainer);
+        mainStage.addChild(shockwaveGraphics);
+        app.stage.addChild(mainStage);
+
+        const crtFragSource = `
+            precision mediump float;
+            varying vec2 vTextureCoord;
+            uniform sampler2D uSampler;
+            uniform float time;
+            void main(void) {
+                vec2 coord = vTextureCoord;
+                vec2 center = vec2(0.5, 0.5);
+                vec2 off_center = coord - center;
+                off_center *= 1.0 + 0.3 * pow(abs(off_center.yx), vec2(2.5));
+                coord = center + off_center;
+                if (coord.x > 1.0 || coord.x < 0.0 || coord.y > 1.0 || coord.y < 0.0) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                } else {
+                    vec4 color = texture2D(uSampler, coord);
+                    float scanline = sin(coord.y * 800.0 + time * 5.0) * 0.1;
+                    color.rgb -= scanline;
+                    float split = 0.003;
+                    color.r = texture2D(uSampler, vec2(coord.x + split, coord.y)).r;
+                    color.b = texture2D(uSampler, vec2(coord.x - split, coord.y)).b;
+                    gl_FragColor = color;
+                }
+            }
+        `;
+        const crtFilter = new PIXI.Filter(null, crtFragSource, { time: 0 });
+
+        const diamondBlur = new PIXI.BlurFilter();
+        diamondBlur.blur = 5;
+        diamondBlur.quality = 2; 
+        diamondBlur.autoFit = true;
+
+        const saturationMatrix = new PIXI.ColorMatrixFilter();
+        saturationMatrix.saturate(1.2, false); 
+
+        glowContainer.filters = [diamondBlur, saturationMatrix];
+        glowContainer.alpha = 0.5; 
+
+        const texGraphics = new PIXI.Graphics();
+        texGraphics.beginFill(0xFFFFFF);
+        texGraphics.drawPolygon([-5, 0, 0, -8, 5, 0, 0, 8]); 
+        texGraphics.endFill();
+        const diamondTexture = app.renderer.generateTexture(texGraphics);
+
+        const glowTexGraphics = new PIXI.Graphics();
+        glowTexGraphics.beginFill(0xFFFFFF);
+        glowTexGraphics.drawCircle(0, 0, 6); 
+        glowTexGraphics.endFill();
+        const glowTexture = app.renderer.generateTexture(glowTexGraphics);
+
+        const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry'];
+        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'crt-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle'];
+        const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
+
+        let settings = {
+            engineTimeScale: 1.0, isHolding: false, 
+            density: 300, 
+            size: 5.0, 
+            'max-neighbors': 3,
+            'density-threshold': 40,
+            distance: 140, 
+            gravity: 0.2, 
+            repel: 1.8, 
+            wrap: false, 
+            well: false,
+            vortex: false, 
+            flow: false, 
+            bullet: true, 
+            'light-mode': false,
+            'bg-hue': 0,
+            'diamond-bloom': 12, 
+            'glow-luminance': 0.03, 
+            'pulse-speed': 0, 
+            symmetry: 1, 
+            crt: false,
+            additive: true, 
+            parallax: false,
+            chromatic: false,
+            virus: false,
+            kinetic: false,
+            trail: false,
+            fill: true, 
+            color: true, 
+            shockwave: false,
+            flock: false,
+            fluid: false,
+            fire: false,
+            rain: false,
+            colors: {
+                core: 0x00ffff,
+                glow: 0x0088ff,
+                line: 0x4488ff,
+                fill: 0x224488
+            }
+        };
+
+        const panel = document.getElementById('ui-panel');
+        document.getElementById('ui-header').addEventListener('click', () => panel.classList.toggle('minimized'));
+        window.addEventListener('keydown', (e) => { if(e.key.toLowerCase() === 'm') panel.classList.toggle('minimized'); });
+
+        function updateFilters() {
+            diamondBlur.blur = settings['diamond-bloom'];
+            glowContainer.alpha = settings['glow-luminance'];
+            glowContainer.filters = [diamondBlur, saturationMatrix];
+        }
+
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color);
+            };
+            return (f(0) << 16) + (f(8) << 8) + f(4);
+        }
+
+        function hexStringToInt(hex) {
+            return parseInt(hex.replace(/^#/, ''), 16);
+        }
+
+        let currentBgHex = 0x020205; 
+
+        function updateBackgroundColor() {
+            let lightness = settings['light-mode'] ? 90 : 5; 
+            let saturation = settings['light-mode'] ? 20 : 30; 
+            currentBgHex = hslToHex(settings['bg-hue'], saturation, lightness);
+            app.renderer.background.color = currentBgHex;
+        }
+
+        function rebuildSymmetry() {
+            diamonds.forEach(d => d.rebuildSprites());
+        }
+
+        function updatePickerState() {
+            const container = document.getElementById('custom-colors');
+            if (settings.color) { 
+                container.classList.add('disabled-picker');
+            } else { 
+                container.classList.remove('disabled-picker');
+            }
+        }
+
+        sliders.forEach(s => {
+            const el = document.getElementById(s);
+            el.addEventListener('input', e => {
+                settings[s] = parseFloat(e.target.value);
+                const disp = document.getElementById(s + '-val');
+                
+                if (s === 'symmetry') {
+                    let val = parseInt(e.target.value);
+                    let displayVal = val === 1 ? '1' : (val === 2 ? '4' : '8');
+                    if(disp) disp.textContent = displayVal;
+                    rebuildSymmetry();
+                } else {
+                    if(disp) disp.textContent = e.target.value;
+                }
+
+                if (s === 'density') adjustSwarmDensity();
+                if (s === 'diamond-bloom' || s === 'glow-luminance') updateFilters();
+                if (s === 'bg-hue') updateBackgroundColor();
+            });
+        });
+
+        colorPickers.forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', e => {
+                let key = id.replace('col-', '');
+                settings.colors[key] = hexStringToInt(e.target.value);
+            });
+        });
+
+        toggles.forEach(t => {
+            const el = document.getElementById(t);
+            el.addEventListener('change', e => {
+                const key = t.replace('-toggle', '');
+                settings[key] = e.target.checked;
+                
+                if (key === 'color') updatePickerState();
+
+                if (key === 'flock' && settings.flock) { settings.fluid = false; settings.fire = false; settings.rain = false; }
+                if (key === 'fluid' && settings.fluid) { settings.flock = false; settings.fire = false; settings.rain = false; }
+                if (key === 'fire' && settings.fire) { 
+                    settings.flock = false; settings.fluid = false; settings.rain = false;
+                    settings.additive = true; document.getElementById('additive-toggle').checked = true;
+                }
+                if (key === 'rain' && settings.rain) {
+                    settings.flock = false; settings.fluid = false; settings.fire = false;
+                }
+
+                document.getElementById('flock-toggle').checked = settings.flock;
+                document.getElementById('fluid-toggle').checked = settings.fluid;
+                document.getElementById('fire-toggle').checked = settings.fire;
+                document.getElementById('rain-toggle').checked = settings.rain;
+
+                if (settings.fire || settings.flock) {
+                    settings.wrap = true; document.getElementById('wrap-toggle').checked = true;
+                } else if (settings.fluid || settings.rain) {
+                    settings.wrap = false; document.getElementById('wrap-toggle').checked = false;
+                }
+
+                if (key === 'virus') handleVirusToggle(e.target.checked);
+                if (key === 'light-mode') updateBackgroundColor();
+                if (key === 'crt') {
+                    if (settings['crt']) app.stage.filters = [crtFilter];
+                    else app.stage.filters = null;
+                }
+            });
+        });
+
+        document.getElementById('snap-btn').addEventListener('click', () => {
+            app.renderer.extract.canvas(app.stage).toBlob(b => {
+                const a = document.createElement('a');
+                document.body.append(a);
+                a.download = 'freakin-fractals-icon.png';
+                a.href = URL.createObjectURL(b);
+                a.click();
+                a.remove();
+            });
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => location.reload());
+
+        let diamonds = [], shockwaves = [], mouse = { x: null, y: null };
+        let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
+        let gyro = { x: 0, y: 0 };
+        let screenShake = 0;
+        let pulsePhase = 0;
+
+        function handleOrientation(e) {
+            gyro.x = e.gamma ? Math.max(-40, Math.min(40, e.gamma)) * 1.5 : 0; 
+            gyro.y = e.beta ? Math.max(-40, Math.min(40, e.beta)) * 1.5 : 0;
+        }
+
+        function playShatterSound() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const time = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = settings.virus ? 'sawtooth' : 'sine'; 
+            let dur = settings.bullet ? 0.8 : 0.4;
+            osc.frequency.setValueAtTime(settings.bullet ? 100 : 200, time);
+            osc.frequency.exponentialRampToValueAtTime(settings.bullet ? 40 : 100, time + dur); 
+            oscGain.gain.setValueAtTime(0, time);
+            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.2 : 0.5, time + 0.04); 
+            oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur); 
+            osc.connect(oscGain); oscGain.connect(audioCtx.destination);
+            osc.start(time); osc.stop(time + dur);
+        }
+
+        function triggerRainDrop(x, y) {
+            diamonds.forEach(d => {
+                let dx = d.x - x;
+                let dy = d.y - y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 150) {
+                    let force = (150 - dist) / 150;
+                    d.vx += (dx / dist) * force * 80.0;
+                    d.vy += (dy / dist) * force * 80.0;
+                }
+            });
+        }
+
+        function handlePointer(e) {
+            const rect = app.view.getBoundingClientRect();
+            let clientX = e.clientX, clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+            if (clientX !== undefined && clientY !== undefined) {
+                mouse.x = clientX - rect.left; mouse.y = clientY - rect.top;
+            }
+        }
+
+        const onPointerDown = (e) => {
+            if (e.target.closest('#ui-panel')) return;
+            if (settings.parallax && !settings.parallaxRequested && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                settings.parallaxRequested = true;
+                DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
+            } else if (settings.parallax && !settings.parallaxRequested) {
+                settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
+            }
+            settings.isHolding = true; handlePointer(e); triggerShatter(mouse.x, mouse.y);
+            if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
+        };
+
+        const onPointerMove = (e) => { if (settings.isHolding || !e.target.closest('#ui-panel')) handlePointer(e); };
+        const onPointerUp = (e) => { settings.isHolding = false; if (e.pointerType === 'touch' || e.type === 'touchend') { mouse.x = null; mouse.y = null; } };
+        const onPointerLeave = (e) => { if (e.pointerType === 'mouse') { mouse.x = null; mouse.y = null; } };
+
+        app.view.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        window.addEventListener('pointerleave', onPointerLeave);
+        app.view.addEventListener('touchstart', onPointerDown, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (!e.target.closest('#ui-panel')) { e.preventDefault(); handlePointer(e); } }, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+        app.view.addEventListener('contextmenu', e => e.preventDefault());
+
+        function triggerShatter(x, y) {
+            playShatterSound(); 
+            if (settings.bullet) settings.engineTimeScale = 0.08; 
+            if (settings.chromatic) screenShake = 15;
+            if (settings.shockwave) shockwaves.push({ x, y, radius: 20, opacity: 1, infected: settings.virus, maxRadius: settings.shatterRadius });
+            
+            diamonds.forEach(d => {
+                let dx = d.x - x, dy = d.y - y, dSq = dx*dx + dy*dy;
+                if (dSq < settings.shatterRadius**2) {
+                    let dist = Math.sqrt(dSq);
+                    let force = (settings.shatterRadius - dist) / settings.shatterRadius;
+                    let chaosMultiplier = Math.random() * 2.5 + 0.5; 
+                    d.vx += (dx / dist) * force * settings.shatterForce * chaosMultiplier;
+                    d.vy += (dy / dist) * force * settings.shatterForce * chaosMultiplier;
+                }
+            });
+        }
+
+        function handleVirusToggle(on) {
+            if (on && diamonds.length > 0) diamonds[Math.floor(Math.random() * diamonds.length)].infected = true;
+            else diamonds.forEach(d => d.infected = false);
+        }
+
+        class Diamond {
+            constructor() {
+                this.x = Math.random() * app.screen.width; 
+                this.y = Math.random() * app.screen.height;
+                this.vx = (Math.random() - 0.5) * 4; this.vy = (Math.random() - 0.5) * 4;
+                this.baseVx = this.vx; this.baseVy = this.vy;
+                this.glow = 0; this.infected = false;
+                
+                const hue = Math.random() * 360;
+                this.colorHex = hslToHex(hue, 80, 60);
+
+                this.sprites = [];
+                this.glowSprites = [];
+                this.rebuildSprites(); 
+            }
+
+            destroy() {
+                this.sprites.forEach(s => s.destroy());
+                this.glowSprites.forEach(s => s.destroy());
+                this.sprites = [];
+                this.glowSprites = [];
+            }
+
+            rebuildSprites() {
+                this.destroy(); 
+                let symMode = settings.symmetry; 
+                let count = symMode === 1 ? 1 : (symMode === 2 ? 4 : 8);
+
+                for (let i = 0; i < count; i++) {
+                    let s = new PIXI.Sprite(diamondTexture);
+                    s.anchor.set(0.5);
+                    particleContainer.addChild(s);
+                    this.sprites.push(s);
+
+                    let g = new PIXI.Sprite(glowTexture);
+                    g.anchor.set(0.5);
+                    glowContainer.addChild(g);
+                    this.glowSprites.push(g);
+                }
+            }
+            
+            update(centerX, centerY, boidGrid, cellSize) {
+                // MOUSE PHYSICS
+                if (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x)) {
+                    let dx = mouse.x - this.x, dy = mouse.y - this.y, dist = Math.sqrt(dx*dx + dy*dy);
+                    if (settings.well) {
+                        if (settings.isHolding) {
+                            let grav = settings.gravity * 8;
+                            this.vx += (dx/dist)*grav; this.vy += (dy/dist)*grav;
+                        }
+                    } else {
+                        if (dist < 180) {
+                            let f = (180 - dist) / 180;
+                            this.vx -= (dx/dist) * f * settings.repel; this.vy -= (dy/dist) * f * settings.repel;
+                        }
+                        if (dist > 20) {
+                            if (settings.vortex) {
+                                this.vx += (-dy/dist)*settings.gravity*5 + (dx/dist)*settings.gravity;
+                                this.vy += (dx/dist)*settings.gravity*5 + (dy/dist)*settings.gravity;
+                            } else {
+                                this.vx += (dx/dist)*settings.gravity; this.vy += (dy/dist)*settings.gravity;
+                            }
+                        }
+                    }
+                }
+
+                // --- AI LOGIC ---
+                if (settings.flock || settings.fluid) {
+                    if (settings.fluid) this.vy += 0.2 * settings.engineTimeScale; 
+
+                    let isLeaderActive = (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x));
+                    let distToLeader = isLeaderActive ? Math.sqrt((mouse.x - this.x)**2 + (mouse.y - this.y)**2) : Infinity;
+
+                    let separationDist = 50; 
+                    if (isLeaderActive && distToLeader < 400 && settings.flock) {
+                        separationDist = 20 + (distToLeader / 400) * 30; 
+                    }
+                    let rangeSq = 80 * 80;
+
+                    let gx = Math.floor(this.x / cellSize);
+                    let gy = Math.floor(this.y / cellSize);
+                    let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
+                    let count = 0;
+
+                    for (let nx = gx - 1; nx <= gx + 1; nx++) {
+                        for (let ny = gy - 1; ny <= gy + 1; ny++) {
+                            let key = nx + ',' + ny;
+                            if (boidGrid[key]) {
+                                boidGrid[key].forEach(other => {
+                                    if (other !== this) {
+                                        let dx = this.x - other.x;
+                                        let dy = this.y - other.y;
+                                        let dSq = dx*dx + dy*dy;
+                                        if (dSq < rangeSq && dSq > 0) {
+                                            alignX += other.vx;
+                                            alignY += other.vy;
+                                            cohX += other.x;
+                                            cohY += other.y;
+                                            let d = Math.sqrt(dSq);
+                                            if (d < separationDist) {
+                                                let str = (separationDist - d) / separationDist;
+                                                sepX += (dx / d) * str;
+                                                sepY += (dy / d) * str;
+                                            }
+                                            count++;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+
+                    if (count > 0) {
+                        let speed = 0.15; 
+                        this.vx += (alignX / count - this.vx) * speed * 0.8; 
+                        this.vy += (alignY / count - this.vy) * speed * 0.8;
+                        this.vx += ((cohX / count) - this.x) * speed * 0.015;
+                        this.vy += ((cohY / count) - this.y) * speed * 0.015;
+                        this.vx += sepX * speed * 8.0; 
+                        this.vy += sepY * speed * 8.0;
+                    } else if (settings.flock) {
+                        this.vx += (Math.random() - 0.5) * 0.1;
+                        this.vy += (Math.random() - 0.5) * 0.1;
+                    }
+
+                    if (isLeaderActive && settings.flock) {
+                        let dx = mouse.x - this.x;
+                        let dy = mouse.y - this.y;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        let reactionFalloff = 600; 
+                        let reactivity = Math.max(0, 1.0 - (dist / reactionFalloff));
+                        reactivity = Math.pow(reactivity, 3); 
+                        let factor = 0.03 * reactivity; 
+                        this.vx += dx * factor;
+                        this.vy += dy * factor;
+                    }
+
+                    let currentSpeed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+                    if (currentSpeed < 2.0) {
+                        if (currentSpeed === 0) { this.vx = Math.random()-0.5; this.vy = Math.random()-0.5; }
+                        else {
+                            let factor = 2.0 / currentSpeed;
+                            this.vx *= factor; this.vy *= factor;
+                        }
+                    }
+                    let maxSpeed = isLeaderActive ? 9.0 : 6.0; 
+                    if (currentSpeed > maxSpeed) {
+                        let factor = maxSpeed / currentSpeed;
+                        this.vx *= factor; this.vy *= factor;
+                    }
+                }
+
+                if (settings.flow) {
+                    let nx = Math.sin(this.x * 0.005 + animationTime) * Math.cos(this.y * 0.005 - animationTime);
+                    let ny = Math.sin(this.y * 0.01 - animationTime) * Math.cos(this.x * 0.01 + animationTime);
+                    let flowAngle = (nx + ny) * Math.PI * 2;
+                    this.vx += Math.cos(flowAngle) * 0.2;
+                    this.vy += Math.sin(flowAngle) * 0.2;
+                }
+
+                if (settings.fire) {
+                    this.vy -= 0.1 * settings.engineTimeScale;
+                    this.vx += (Math.random() - 0.5) * 0.5 * settings.engineTimeScale;
+                    if (this.y < -50) {
+                        this.y = app.screen.height + 50;
+                        this.x = Math.random() * app.screen.width;
+                        this.vx = (Math.random() - 0.5) * 2;
+                        this.vy = (Math.random() * -2) - 1;
+                    }
+                }
+
+                if (settings.rain) {
+                    this.vx *= 0.9;
+                    this.vy *= 0.9;
+                    this.vy += Math.sin(this.x * 0.02 + animationTime * 2) * 0.05;
+                    this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
+                }
+
+                let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
+                this.vx *= friction; 
+                this.vy *= friction;
+
+                if (this.infected) { 
+                    this.vx += Math.random()-0.5; 
+                    this.vy += Math.random()-0.5; 
+                }
+                else if (!settings.flock && !settings.fluid && !settings.fire && !settings.rain) { 
+                    this.vx += (this.baseVx-this.vx)*0.05; 
+                    this.vy += (this.baseVy-this.vy)*0.05; 
+                }
+
+                this.x += this.vx * settings.engineTimeScale; 
+                this.y += this.vy * settings.engineTimeScale;
+                
+                if (settings.wrap) {
+                    if (this.x < -10) this.x = app.screen.width + 10;
+                    if (this.x > app.screen.width + 10) this.x = -10;
+                    if (this.y < -10) this.y = app.screen.height + 10;
+                    if (this.y > app.screen.height + 10) this.y = -10;
+                } else {
+                    if (this.x < 0) { this.x = 0; this.vx *= -0.8; } 
+                    if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; }
+                    if (this.y < 0) { this.y = 0; this.vy *= -0.8; }
+                    if (this.y > app.screen.height) { 
+                        this.y = app.screen.height; 
+                        this.vy *= -0.6;
+                        this.vx *= 0.95;
+                    }
+                }
+
+                this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx**2 + this.vy**2) - 2.5) / 12));
+                
+                let pulseScale = 1.0;
+                if (settings['pulse-speed'] > 0) {
+                    pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
+                }
+
+                let coreSize = settings.size * pulseScale;
+                let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
+
+                // --- COLOR LOGIC ---
+                let color;
+                if (settings.fire) {
+                    let fireHue = Math.random() * 45;
+                    color = hslToHex(fireHue, 100, 60);
+                } else if (settings.color) {
+                    color = this.infected ? 0xff2233 : this.colorHex;
+                } else {
+                    color = this.infected ? 0xff2233 : settings.colors.core;
+                }
+                
+                let alpha = settings.kinetic ? 0.05 + 0.95*this.glow : 1;
+
+                if (settings.rain) {
+                    alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
+                }
+
+                let count = this.sprites.length;
+                let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8)); 
+                let relX = this.x - centerX;
+                let relY = this.y - centerY;
+
+                for(let i=0; i<count; i++) {
+                    let s = this.sprites[i];
+                    let g = this.glowSprites[i];
+                    
+                    if (count === 1) {
+                        s.x = this.x; s.y = this.y;
+                        g.x = this.x; g.y = this.y;
+                    } else {
+                        let theta = angleStep * i;
+                        let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
+                        let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
+                        s.x = centerX + rotX; s.y = centerY + rotY;
+                        g.x = centerX + rotX; g.y = centerY + rotY;
+                    }
+
+                    s.tint = color;
+                    s.alpha = alpha;
+                    s.width = coreSize; s.height = coreSize;
+
+                    if (settings.color || settings.fire) {
+                        g.tint = color;
+                    } else {
+                        g.tint = settings.colors.glow;
+                    }
+                    g.alpha = alpha;
+                    g.width = glowBaseSize; g.height = glowBaseSize;
+                }
+            }
+        }
+
+        function adjustSwarmDensity() {
+            while (diamonds.length < settings.density) {
+                diamonds.push(new Diamond());
+            }
+            while (diamonds.length > settings.density) {
+                let d = diamonds.pop();
+                d.destroy(); 
+            }
+        }
+
+        app.ticker.add((delta) => {
+            frames++; animationTime += 0.01;
+            let now = performance.now();
+            if (now > lastFpsUpdate + 500) {
+                document.getElementById('fps-counter').textContent = Math.round((frames * 1000) / (now - lastFpsUpdate));
+                frames = 0; lastFpsUpdate = now;
+            }
+
+            if (settings['pulse-speed'] > 0) {
+                pulsePhase += 0.02 * settings['pulse-speed'];
+            }
+
+            if (settings['crt']) {
+                crtFilter.uniforms.time += 0.01;
+            }
+
+            if (settings.rain && Math.random() < 0.08) {
+                triggerRainDrop(Math.random() * app.screen.width, Math.random() * app.screen.height);
+            }
+
+            fadeLayer.clear();
+            if (settings.trail) {
+                fadeLayer.beginFill(currentBgHex, 0.15); 
+                fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
+                fadeLayer.endFill();
+            } else {
+                fadeLayer.beginFill(currentBgHex, 1.0); 
+                fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
+                fadeLayer.endFill();
+            }
+
+            glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
+            particleContainer.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+            webGraphics.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+            shockwaveGraphics.blendMode = settings.chromatic || settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+
+            let sx = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+            let sy = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+            mainStage.x = sx - (settings.parallax ? gyro.x : 0);
+            mainStage.y = sy - (settings.parallax ? gyro.y : 0);
+            if (screenShake > 0) screenShake *= 0.8;
+
+            settings.engineTimeScale += (1.0 - settings.engineTimeScale) * 0.02;
+
+            let boidGrid = {};
+            let boidCell = 70; 
+            if (settings.flock || settings.fluid) {
+                diamonds.forEach(d => {
+                    let key = Math.floor(d.x/boidCell) + ',' + Math.floor(d.y/boidCell);
+                    if (!boidGrid[key]) boidGrid[key] = [];
+                    boidGrid[key].push(d);
+                });
+            }
+
+            let centerX = app.screen.width / 2;
+            let centerY = app.screen.height / 2;
+            diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
+
+            webGraphics.clear();
+            
+            let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
+            let effectiveDensityThresh = settings['density-threshold'];
+
+            if (effectiveMaxNeighbors > 0) {
+                let maxSq = settings.distance**2, cell = settings.distance, grid = {};
+                diamonds.forEach((d, i) => {
+                    let k = Math.floor(d.x/cell) + ',' + Math.floor(d.y/cell);
+                    if (!grid[k]) grid[k] = []; grid[k].push(i);
+                });
+
+                diamonds.forEach((d1, i) => {
+                    let gx = Math.floor(d1.x/cell), gy = Math.floor(d1.y/cell), neighbors = [];
+                    if ((grid[gx+','+gy] || []).length > effectiveDensityThresh) return;
+
+                    for (let x=gx-1; x<=gx+1; x++) for (let y=gy-1; y<=gy+1; y++) {
+                        (grid[x+','+y] || []).forEach(j => {
+                            if (j > i) {
+                                let dSq = (d1.x-diamonds[j].x)**2 + (d1.y-diamonds[j].y)**2;
+                                if (dSq < maxSq) {
+                                    neighbors.push({j, dSq});
+                                    if (settings.virus && dSq < maxSq*0.4 && Math.random() > 0.98) {
+                                        if (d1.infected) diamonds[j].infected = true;
+                                        else if (diamonds[j].infected) d1.infected = true;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    let closestNeighbors = neighbors.sort((a,b)=>a.dSq-b.dSq).slice(0, effectiveMaxNeighbors);
+                    
+                    closestNeighbors.forEach((n1, idx) => {
+                        closestNeighbors.slice(idx + 1).forEach(n2 => {
+                            let d2 = diamonds[n1.j], d3 = diamonds[n2.j], d23Sq = (d2.x-d3.x)**2 + (d2.y-d3.y)**2;
+                            if (d23Sq < maxSq) {
+                                let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
+                                let op = (1 - (distMax / settings.distance)) * 0.4;
+                                if (settings.additive) op *= 0.3; 
+                                if (settings.kinetic) op *= (0.02 + 0.98 * (d1.glow + d2.glow + d3.glow)/3);
+                                let inf = d1.infected || d2.infected || d3.infected;
+
+                                let color, fillAlpha, lineAlpha;
+                                if (settings.fire) {
+                                    color = inf ? 0xff5064 : (settings.color ? d1.colorHex : 0xb4dcff);
+                                } else if (settings.color) {
+                                    color = inf ? 0xff5064 : d1.colorHex;
+                                } else {
+                                    color = inf ? 0xff5064 : settings.colors.line;
+                                }
+
+                                if (settings.fire) {
+                                    fillAlpha = 0.1; 
+                                    lineAlpha = op * 3.0; 
+                                } else {
+                                    fillAlpha = settings.additive ? op*0.5 : op*1.5;
+                                    lineAlpha = op * 2;
+                                    if (!settings.color && !settings.kinetic) {
+                                        fillAlpha = settings.additive ? 0.05 : 0.15;
+                                        lineAlpha = settings.additive ? 0.15 : 0.3;
+                                    }
+                                }
+
+                                let symCount = settings.symmetry === 1 ? 1 : (settings.symmetry === 2 ? 4 : 8);
+                                let angleStep = (Math.PI * 2) / symCount;
+
+                                for (let s = 0; s < symCount; s++) {
+                                    let theta = angleStep * s;
+                                    
+                                    const rot = (px, py) => {
+                                        let rx = px - centerX;
+                                        let ry = py - centerY;
+                                        return {
+                                            x: centerX + rx * Math.cos(theta) - ry * Math.sin(theta),
+                                            y: centerY + rx * Math.sin(theta) + ry * Math.cos(theta)
+                                        };
+                                    };
+
+                                    let p1 = rot(d1.x, d1.y);
+                                    let p2 = rot(d2.x, d2.y);
+                                    let p3 = rot(d3.x, d3.y);
+
+                                    if (settings.fill) {
+                                        let fillColor = settings.color ? color : settings.colors.fill;
+                                        webGraphics.beginFill(fillColor, fillAlpha);
+                                        webGraphics.moveTo(p1.x, p1.y);
+                                        webGraphics.lineTo(p2.x, p2.y);
+                                        webGraphics.lineTo(p3.x, p3.y);
+                                        webGraphics.endFill();
+                                    }
+                                    webGraphics.lineStyle(0.5, color, lineAlpha);
+                                    webGraphics.moveTo(p1.x, p1.y);
+                                    webGraphics.lineTo(p2.x, p2.y);
+                                    webGraphics.lineTo(p3.x, p3.y);
+                                    webGraphics.lineTo(p1.x, p1.y);
+                                }
+                            }
+                        });
+                    });
+                });
+            }
+
+            shockwaveGraphics.clear();
+            shockwaves = shockwaves.filter(sw => {
+                sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
+                
+                if (settings.chromatic) {
+                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0xff0000, sw.opacity); shockwaveGraphics.drawCircle(sw.x - 4, sw.y, sw.radius);
+                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x0064ff, sw.opacity); shockwaveGraphics.drawCircle(sw.x + 4, sw.y, sw.radius);
+                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x00ff00, sw.opacity); shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
+                } else {
+                    shockwaveGraphics.lineStyle(4 * sw.opacity, sw.infected ? 0xff3232 : 0xb4dcff, sw.opacity);
+                    shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
+                }
+                return sw.opacity > 0;
+            });
+        });
+
+        updateFilters();
+        updatePickerState();
+        updateBackgroundColor();
+        adjustSwarmDensity();
+    </script>
+</body>
+</html>
