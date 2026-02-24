@@ -1750,7 +1750,7 @@
                 }
                 settings.isHolding = true;
                 handlePointer(e);
-                let isRightClick = (e.button === 2 || e.which === 3) || (e.touches && e.touches.length >= 2);
+                let isRightClick = (e.button === 2 || e.which === 3) || (e.touches && e.touches.length >= 2) || (activeTouches >= 2);
                 triggerShatter(mouse.x, mouse.y, isRightClick);
                 if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
             }
@@ -1776,14 +1776,29 @@
         const onPointerUp = (e) => { settings.isHolding = false; if (e.pointerType === 'touch' || e.type === 'touchend') { mouse.x = null; mouse.y = null; } };
         const onPointerLeave = (e) => { if (e.pointerType === 'mouse') { mouse.x = null; mouse.y = null; } };
 
+        let activeTouches = 0;
+
         app.view.addEventListener('pointerdown', onPointerDown);
         window.addEventListener('pointermove', onPointerMove);
         window.addEventListener('pointerup', onPointerUp);
         window.addEventListener('pointercancel', onPointerUp);
         window.addEventListener('pointerleave', onPointerLeave);
-        app.view.addEventListener('touchstart', onPointerDown, { passive: false });
-        window.addEventListener('touchmove', (e) => { if (!e.target.closest('#ui-panel')) { e.preventDefault(); handlePointer(e); } }, { passive: false });
-        window.addEventListener('touchend', onPointerUp);
+        app.view.addEventListener('touchstart', (e) => {
+            activeTouches = e.touches.length;
+            onPointerDown(e);
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            activeTouches = e.touches.length;
+            if (!e.target.closest('#ui-panel')) { e.preventDefault(); handlePointer(e); }
+        }, { passive: false });
+        window.addEventListener('touchend', (e) => {
+            activeTouches = e.touches.length;
+            onPointerUp(e);
+        });
+        window.addEventListener('touchcancel', (e) => {
+            activeTouches = e.touches.length;
+            onPointerUp(e);
+        });
         app.view.addEventListener('contextmenu', e => e.preventDefault());
 
         function triggerShatter(x, y, isImplosion = false) {
