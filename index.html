@@ -396,6 +396,19 @@
                 <label for="shockwave-toggle">Visual Shockwave: <input type="checkbox" id="shockwave-toggle"></label>
             </div>
 
+            <h3>Interactive Modes</h3>
+            <div class="control-group">
+                <label for="paint-toggle" class="wow-label">Draw Static Emitters: <input type="checkbox"
+                        id="paint-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="emitter-gravity">Emitter Gravity: <span id="emitter-gravity-val">0.8</span></label>
+                <input type="range" id="emitter-gravity" min="0" max="3.0" step="0.1" value="0.8">
+            </div>
+            <button id="clear-paint-btn"
+                style="width: 100%; margin-top: 5px; margin-bottom: 15px; border-color: #ffaa00; color: #ffaa00; background: rgba(255, 170, 0, 0.1);">🧹
+                Clear Canvas</button>
+
             <button id="chaos-btn">🎲 Chaos Scene</button>
             <button id="snap-btn">Wallpaper ME!</button>
             <button id="reset-btn">Reset Factory Settings</button>
@@ -452,8 +465,8 @@
         glowTexGraphics.endFill();
         const glowTexture = app.renderer.generateTexture(glowTexGraphics);
 
-        const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity'];
-        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle'];
+        const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
+        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'paint-toggle'];
         const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
 
         let settings = {
@@ -476,6 +489,7 @@
             'glow-luminance': 0.03,
             'pulse-speed': 0,
             symmetry: 1,
+            'emitter-gravity': 0.8,
             additive: true,
             parallax: false,
             chromatic: false,
@@ -490,7 +504,10 @@
             fire: false,
             rain: false,
             audio: false,
+            paint: false,
             'audio-sensitivity': 1.0,
+            shatterRadius: 350,
+            shatterForce: 25,
             colors: {
                 core: 0x00ffff,
                 glow: 0x0088ff,
@@ -1648,7 +1665,7 @@
             }
         });
 
-        let diamonds = [], shockwaves = [], mouse = { x: null, y: null };
+        let diamonds = [], shockwaves = [], paintedNodes = [], mouse = { x: null, y: null };
         let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
         let gyro = { x: 0, y: 0 };
         let screenShake = 0;
@@ -1700,19 +1717,48 @@
             }
         }
 
+        document.getElementById('clear-paint-btn').addEventListener('click', () => {
+            paintedNodes = [];
+        });
+
         const onPointerDown = (e) => {
             if (e.target.closest('#ui-panel')) return;
-            if (settings.parallax && !settings.parallaxRequested && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                settings.parallaxRequested = true;
-                DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
-            } else if (settings.parallax && !settings.parallaxRequested) {
-                settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
+
+            if (settings.paint) {
+                // Paint mode logic
+                settings.isHolding = false;
+                paintedNodes.push({ x: e.clientX, y: e.clientY });
+                if (paintedNodes.length > 500) paintedNodes.shift();
+            } else {
+                // Normal interaction logic
+                if (settings.parallax && !settings.parallaxRequested && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    settings.parallaxRequested = true;
+                    DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
+                } else if (settings.parallax && !settings.parallaxRequested) {
+                    settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
+                }
+                settings.isHolding = true; handlePointer(e); triggerShatter(mouse.x, mouse.y);
+                if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
             }
-            settings.isHolding = true; handlePointer(e); triggerShatter(mouse.x, mouse.y);
-            if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
         };
 
-        const onPointerMove = (e) => { if (settings.isHolding || !e.target.closest('#ui-panel')) handlePointer(e); };
+        const onPointerMove = (e) => {
+            if (settings.isHolding || !e.target.closest('#ui-panel')) {
+                handlePointer(e);
+            } else {
+                mouse.x = null;
+                mouse.y = null;
+            }
+
+            if (settings.paint && e.buttons > 0 && !e.target.closest('#ui-panel')) {
+                // Throttle drawing based on distance to prevent lag
+                let lastNode = paintedNodes[paintedNodes.length - 1];
+                if (!lastNode || Math.hypot(e.clientX - lastNode.x, e.clientY - lastNode.y) > 15) {
+                    paintedNodes.push({ x: e.clientX, y: e.clientY });
+                    if (paintedNodes.length > 500) paintedNodes.shift();
+                }
+            }
+        };
         const onPointerUp = (e) => { settings.isHolding = false; if (e.pointerType === 'touch' || e.type === 'touchend') { mouse.x = null; mouse.y = null; } };
         const onPointerLeave = (e) => { if (e.pointerType === 'mouse') { mouse.x = null; mouse.y = null; } };
 
@@ -1814,6 +1860,44 @@
                         }
                     }
                 }
+                // PAINTED NODES PHYSICS (Attract particles to drawn anchors and let them stack)
+                let emitterGrav = settings['emitter-gravity'];
+                if (paintedNodes.length > 0 && emitterGrav > 0) {
+                    let minSq = 22500; // 150px range limit
+                    let closestNode = null;
+
+                    // Find ONLY the single closest node to prevent clumping at the center of mass
+                    paintedNodes.forEach(p => {
+                        let dx = p.x - this.x, dy = p.y - this.y, distSq = dx * dx + dy * dy;
+                        if (distSq < minSq) {
+                            minSq = distSq;
+                            closestNode = p;
+                        }
+                    });
+
+                    if (closestNode) {
+                        let dx = closestNode.x - this.x;
+                        let dy = closestNode.y - this.y;
+                        let dist = Math.sqrt(minSq);
+                        let targetRadius = 25; // The shell radius where they stack
+
+                        if (dist > targetRadius) {
+                            // Attract forward ONLY to the closest point
+                            let force = (150 - dist) / 150;
+                            this.vx += (dx / dist) * force * emitterGrav;
+                            this.vy += (dy / dist) * force * emitterGrav;
+                        } else {
+                            // Push back to prevent collapsing to the exact center point
+                            let force = (targetRadius - dist) / targetRadius;
+                            this.vx -= (dx / dist) * force * emitterGrav * 1.2;
+                            this.vy -= (dy / dist) * force * emitterGrav * 1.2;
+
+                            // Apply heavy friction when locked in the shell so they nest
+                            this.vx *= 0.85;
+                            this.vy *= 0.85;
+                        }
+                    }
+                }
 
                 // --- AI LOGIC ---
                 if (settings.flock || settings.fluid) {
@@ -1843,8 +1927,10 @@
                                         let dy = this.y - other.y;
                                         let dSq = dx * dx + dy * dy;
                                         if (dSq < rangeSq && dSq > 0) {
-                                            alignX += other.vx;
-                                            alignY += other.vy;
+                                            if (other.vx !== undefined) {
+                                                alignX += other.vx;
+                                                alignY += other.vy;
+                                            }
                                             cohX += other.x;
                                             cohY += other.y;
                                             let d = Math.sqrt(dSq);
@@ -1949,13 +2035,14 @@
                     if (this.y < -10) this.y = app.screen.height + 10;
                     if (this.y > app.screen.height + 10) this.y = -10;
                 } else {
-                    if (this.x < 0) { this.x = 0; this.vx *= -0.8; }
-                    if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; }
-                    if (this.y < 0) { this.y = 0; this.vy *= -0.8; }
+                    if (this.x < 0) { this.x = 0; this.vx *= -0.8; this.baseVx *= -1; }
+                    if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; this.baseVx *= -1; }
+                    if (this.y < 0) { this.y = 0; this.vy *= -0.8; this.baseVy *= -1; }
                     if (this.y > app.screen.height) {
                         this.y = app.screen.height;
                         this.vy *= -0.6;
                         this.vx *= 0.95;
+                        this.baseVy *= -1;
                     }
                 }
 
@@ -2058,6 +2145,15 @@
                 fadeLayer.endFill();
             }
 
+            // Render Painted Nodes
+            if (paintedNodes.length > 0) {
+                fadeLayer.beginFill(settings.colors.core, 0.8);
+                paintedNodes.forEach(node => {
+                    fadeLayer.drawCircle(node.x, node.y, 4);
+                });
+                fadeLayer.endFill();
+            }
+
             glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
             particleContainer.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
             webGraphics.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
@@ -2130,7 +2226,8 @@
             let boidGrid = {};
             let boidCell = 70;
             if (settings.flock || settings.fluid) {
-                diamonds.forEach(d => {
+                // Combine diamonds and paintedNodes for structural interaction
+                [...diamonds, ...paintedNodes].forEach(d => {
                     let key = Math.floor(d.x / boidCell) + ',' + Math.floor(d.y / boidCell);
                     if (!boidGrid[key]) boidGrid[key] = [];
                     boidGrid[key].push(d);
@@ -2148,9 +2245,21 @@
 
             if (effectiveMaxNeighbors > 0) {
                 let maxSq = settings.distance ** 2, cell = settings.distance, grid = {};
+
+                // Add moving particles into spatial grid
                 diamonds.forEach((d, i) => {
                     let k = Math.floor(d.x / cell) + ',' + Math.floor(d.y / cell);
-                    if (!grid[k]) grid[k] = []; grid[k].push(i);
+                    if (!grid[k]) grid[k] = [];
+                    // Store as object { type: 'd', index: i }
+                    grid[k].push({ type: 'd', index: i });
+                });
+
+                // Add painted static nodes into spatial grid
+                paintedNodes.forEach((p, i) => {
+                    let k = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
+                    if (!grid[k]) grid[k] = [];
+                    // Store as object { type: 'p', index: i }
+                    grid[k].push({ type: 'p', index: i });
                 });
 
                 diamonds.forEach((d1, i) => {
@@ -2158,15 +2267,19 @@
                     if ((grid[gx + ',' + gy] || []).length > effectiveDensityThresh) return;
 
                     for (let x = gx - 1; x <= gx + 1; x++) for (let y = gy - 1; y <= gy + 1; y++) {
-                        (grid[x + ',' + y] || []).forEach(j => {
-                            if (j > i) {
-                                let dSq = (d1.x - diamonds[j].x) ** 2 + (d1.y - diamonds[j].y) ** 2;
-                                if (dSq < maxSq) {
-                                    neighbors.push({ j, dSq });
-                                    if (settings.virus && dSq < maxSq * 0.4 && Math.random() > 0.98) {
-                                        if (d1.infected) diamonds[j].infected = true;
-                                        else if (diamonds[j].infected) d1.infected = true;
-                                    }
+                        (grid[x + ',' + y] || []).forEach(nodeRef => {
+                            if (nodeRef.type === 'd' && nodeRef.index <= i) return; // Avoid double checking diamonds
+
+                            let otherNode = nodeRef.type === 'd' ? diamonds[nodeRef.index] : paintedNodes[nodeRef.index];
+                            let dx = d1.x - otherNode.x;
+                            let dy = d1.y - otherNode.y;
+                            let dSq = dx * dx + dy * dy;
+
+                            if (dSq < maxSq) {
+                                neighbors.push({ nodeRef, dSq, otherNode });
+                                if (settings.virus && nodeRef.type === 'd' && dSq < maxSq * 0.4 && Math.random() > 0.98) {
+                                    if (d1.infected) diamonds[nodeRef.index].infected = true;
+                                    else if (diamonds[nodeRef.index].infected) d1.infected = true;
                                 }
                             }
                         });
@@ -2176,12 +2289,18 @@
 
                     closestNeighbors.forEach((n1, idx) => {
                         closestNeighbors.slice(idx + 1).forEach(n2 => {
-                            let d2 = diamonds[n1.j], d3 = diamonds[n2.j], d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
+                            let d2 = n1.otherNode, d3 = n2.otherNode, d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
                             if (d23Sq < maxSq) {
                                 let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
                                 let op = (1 - (distMax / settings.distance)) * 0.4;
                                 if (settings.additive) op *= 0.3;
-                                if (settings.kinetic) op *= (0.02 + 0.98 * (d1.glow + d2.glow + d3.glow) / 3);
+
+                                // Default glow to 1.0 for painted nodes, otherwise use diamond glow
+                                let d1Glow = d1.glow || 1.0;
+                                let d2Glow = d2.glow || 1.0;
+                                let d3Glow = d3.glow || 1.0;
+                                if (settings.kinetic) op *= (0.02 + 0.98 * (d1Glow + d2Glow + d3Glow) / 3);
+
                                 let inf = d1.infected || d2.infected || d3.infected;
 
                                 let color, fillAlpha, lineAlpha;
