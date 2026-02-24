@@ -506,8 +506,8 @@
             audio: false,
             paint: false,
             'audio-sensitivity': 1.0,
-            shatterRadius: 350,
-            shatterForce: 25,
+            shatterRadius: 600,
+            shatterForce: 45,
             colors: {
                 core: 0x00ffff,
                 glow: 0x0088ff,
@@ -1685,12 +1685,16 @@
             const osc = audioCtx.createOscillator();
             const oscGain = audioCtx.createGain();
             osc.type = settings.virus ? 'sawtooth' : 'sine';
-            let dur = settings.bullet ? 0.8 : 0.4;
-            osc.frequency.setValueAtTime(settings.bullet ? 100 : 200, time);
-            osc.frequency.exponentialRampToValueAtTime(settings.bullet ? 40 : 100, time + dur);
+
+            // Shorter duration and higher frequencies for a "click" and less bass
+            let dur = settings.bullet ? 0.2 : 0.1;
+            osc.frequency.setValueAtTime(settings.bullet ? 800 : 1200, time);
+            osc.frequency.exponentialRampToValueAtTime(settings.bullet ? 400 : 800, time + dur);
+
             oscGain.gain.setValueAtTime(0, time);
-            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.2 : 0.5, time + 0.04);
+            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.1 : 0.3, time + 0.02);
             oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+
             osc.connect(oscGain); oscGain.connect(audioCtx.destination);
             osc.start(time); osc.stop(time + dur);
         }
@@ -1737,7 +1741,10 @@
                 } else if (settings.parallax && !settings.parallaxRequested) {
                     settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
                 }
-                settings.isHolding = true; handlePointer(e); triggerShatter(mouse.x, mouse.y);
+                settings.isHolding = true;
+                handlePointer(e);
+                let isRightClick = (e.button === 2 || e.which === 3) || (e.touches && e.touches.length >= 2);
+                triggerShatter(mouse.x, mouse.y, isRightClick);
                 if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
             }
         };
@@ -1772,7 +1779,7 @@
         window.addEventListener('touchend', onPointerUp);
         app.view.addEventListener('contextmenu', e => e.preventDefault());
 
-        function triggerShatter(x, y) {
+        function triggerShatter(x, y, isImplosion = false) {
             playShatterSound();
             if (settings.bullet) settings.engineTimeScale = 0.08;
             if (settings.chromatic) screenShake = 15;
@@ -1784,8 +1791,15 @@
                     let dist = Math.sqrt(dSq);
                     let force = (settings.shatterRadius - dist) / settings.shatterRadius;
                     let chaosMultiplier = Math.random() * 2.5 + 0.5;
-                    d.vx += (dx / dist) * force * settings.shatterForce * chaosMultiplier;
-                    d.vy += (dy / dist) * force * settings.shatterForce * chaosMultiplier;
+
+                    let appliedForce = force * settings.shatterForce * chaosMultiplier;
+                    if (isImplosion) {
+                        // Invert the force to pull particles towards the cursor
+                        appliedForce = -appliedForce * 1.5;
+                    }
+
+                    d.vx += (dx / dist) * appliedForce;
+                    d.vy += (dy / dist) * appliedForce;
                 }
             });
         }
