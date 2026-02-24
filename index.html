@@ -410,7 +410,7 @@
                 Clear Canvas</button>
 
             <button id="chaos-btn">🎲 Chaos Scene</button>
-            <button id="snap-btn">Wallpaper ME!</button>
+            <button id="snap-btn">Wallpaper ME! (Press S)</button>
             <button id="reset-btn">Reset Factory Settings</button>
         </div>
     </div>
@@ -518,7 +518,10 @@
 
         const panel = document.getElementById('ui-panel');
         document.getElementById('ui-header').addEventListener('click', () => panel.classList.toggle('minimized'));
-        window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm') panel.classList.toggle('minimized'); });
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'm') panel.classList.toggle('minimized');
+            else if (e.key.toLowerCase() === 's' && !e.repeat) document.getElementById('snap-btn').click();
+        });
 
         function updateFilters() {
             diamondBlur.blur = settings['diamond-bloom'];
