@@ -233,7 +233,8 @@
                 <label for="shockwave-toggle">Visual Shockwave: <input type="checkbox" id="shockwave-toggle"></label>
             </div>
 
-            <button id="snap-btn">📸 Snap Icon</button>
+            <button id="chaos-btn">🎲 Chaos Scene</button>
+            <button id="snap-btn">Wallpaper ME!</button>
             <button id="reset-btn">Reset Factory Settings</button>
         </div>
     </div>
@@ -385,6 +386,11 @@
             return parseInt(hex.replace(/^#/, ''), 16);
         }
 
+        function intToHexString(intColor) {
+            let hex = intColor.toString(16).padStart(6, '0');
+            return '#' + hex;
+        }
+
         let currentBgHex = 0x020205; 
 
         function updateBackgroundColor() {
@@ -405,6 +411,832 @@
             } else { 
                 container.classList.remove('disabled-picker');
             }
+        }
+
+        const chaosPresets = [
+            {
+                name: 'Neon Flockstorm',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 520,
+                    size: 4.0,
+                    'max-neighbors': 4,
+                    'density-threshold': 35,
+                    distance: 140,
+                    gravity: 0.18,
+                    repel: 1.5,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 220,
+                    'diamond-bloom': 18,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 4,
+                    symmetry: 2,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: true,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Liquid Cathedral',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 420,
+                    size: 5.5,
+                    'max-neighbors': 5,
+                    'density-threshold': 50,
+                    distance: 160,
+                    gravity: 0.12,
+                    repel: 1.2,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 195,
+                    'diamond-bloom': 20,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 3,
+                    symmetry: 3,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: true,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Inferno Storm',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 480,
+                    size: 4.5,
+                    'max-neighbors': 3,
+                    'density-threshold': 45,
+                    distance: 130,
+                    gravity: 0.10,
+                    repel: 1.0,
+                    wrap: true,
+                    well: false,
+                    vortex: true,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 25,
+                    'diamond-bloom': 22,
+                    'glow-luminance': 0.07,
+                    'pulse-speed': 5,
+                    symmetry: 1,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: true,
+                    rain: false
+                }
+            },
+            {
+                name: 'Monsoon Lattice',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 360,
+                    size: 5.0,
+                    'max-neighbors': 5,
+                    'density-threshold': 40,
+                    distance: 170,
+                    gravity: 0.16,
+                    repel: 1.6,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 200,
+                    'diamond-bloom': 16,
+                    'glow-luminance': 0.03,
+                    'pulse-speed': 2,
+                    symmetry: 2,
+                    crt: false,
+                    additive: false,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: false,
+                    fill: true,
+                    color: false,
+                    shockwave: false,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: true
+                }
+            },
+            {
+                name: 'Digital Plague',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 460,
+                    size: 4.5,
+                    'max-neighbors': 4,
+                    'density-threshold': 35,
+                    distance: 140,
+                    gravity: 0.15,
+                    repel: 1.4,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 330,
+                    'diamond-bloom': 20,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 5,
+                    symmetry: 3,
+                    crt: true,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: true,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Solar Bloom',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 340,
+                    size: 6.0,
+                    'max-neighbors': 4,
+                    'density-threshold': 45,
+                    distance: 180,
+                    gravity: 0.14,
+                    repel: 1.3,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 40,
+                    'diamond-bloom': 24,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 3,
+                    symmetry: 2,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: true,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Quantum Weave',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 400,
+                    size: 4.2,
+                    'max-neighbors': 6,
+                    'density-threshold': 50,
+                    distance: 190,
+                    gravity: 0.16,
+                    repel: 1.7,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 260,
+                    'diamond-bloom': 18,
+                    'glow-luminance': 0.04,
+                    'pulse-speed': 4,
+                    symmetry: 3,
+                    crt: false,
+                    additive: false,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: false,
+                    trail: false,
+                    fill: true,
+                    color: true,
+                    shockwave: false,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Midnight Glass',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 320,
+                    size: 5.8,
+                    'max-neighbors': 3,
+                    'density-threshold': 40,
+                    distance: 160,
+                    gravity: 0.11,
+                    repel: 1.1,
+                    wrap: false,
+                    well: true,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 210,
+                    'diamond-bloom': 26,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 2,
+                    symmetry: 1,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Aurora Swarm',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 450,
+                    size: 4.8,
+                    'max-neighbors': 4,
+                    'density-threshold': 45,
+                    distance: 155,
+                    gravity: 0.17,
+                    repel: 1.4,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 140,
+                    'diamond-bloom': 20,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 4,
+                    symmetry: 2,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: true,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Prism Engine',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 380,
+                    size: 5.0,
+                    'max-neighbors': 5,
+                    'density-threshold': 42,
+                    distance: 180,
+                    gravity: 0.13,
+                    repel: 1.2,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 300,
+                    'diamond-bloom': 24,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 5,
+                    symmetry: 3,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: false,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: false,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Static Blizzard',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 360,
+                    size: 4.2,
+                    'max-neighbors': 6,
+                    'density-threshold': 55,
+                    distance: 200,
+                    gravity: 0.10,
+                    repel: 1.8,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 210,
+                    'diamond-bloom': 18,
+                    'glow-luminance': 0.04,
+                    'pulse-speed': 1,
+                    symmetry: 2,
+                    crt: false,
+                    additive: false,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: false,
+                    fill: true,
+                    color: false,
+                    shockwave: false,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: true
+                }
+            },
+            {
+                name: 'Deep Space Echo',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 300,
+                    size: 6.2,
+                    'max-neighbors': 3,
+                    'density-threshold': 38,
+                    distance: 190,
+                    gravity: 0.09,
+                    repel: 1.0,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 260,
+                    'diamond-bloom': 28,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 2,
+                    symmetry: 1,
+                    crt: true,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Cyber Monsoon',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 430,
+                    size: 4.6,
+                    'max-neighbors': 4,
+                    'density-threshold': 45,
+                    distance: 165,
+                    gravity: 0.17,
+                    repel: 1.5,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 190,
+                    'diamond-bloom': 20,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 4,
+                    symmetry: 2,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: true
+                }
+            },
+            {
+                name: 'Neon Basilica',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 410,
+                    size: 5.4,
+                    'max-neighbors': 5,
+                    'density-threshold': 48,
+                    distance: 175,
+                    gravity: 0.13,
+                    repel: 1.3,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 300,
+                    'diamond-bloom': 22,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 3,
+                    symmetry: 3,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Gravity Well',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 350,
+                    size: 5.8,
+                    'max-neighbors': 3,
+                    'density-threshold': 40,
+                    distance: 150,
+                    gravity: 0.20,
+                    repel: 1.2,
+                    wrap: false,
+                    well: true,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 230,
+                    'diamond-bloom': 24,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 4,
+                    symmetry: 1,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Blooming Rift',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 370,
+                    size: 5.2,
+                    'max-neighbors': 4,
+                    'density-threshold': 44,
+                    distance: 185,
+                    gravity: 0.14,
+                    repel: 1.4,
+                    wrap: false,
+                    well: false,
+                    vortex: true,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 10,
+                    'diamond-bloom': 26,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 5,
+                    symmetry: 3,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: true,
+                    rain: false
+                }
+            },
+            {
+                name: 'Glitch Carousel',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 390,
+                    size: 4.4,
+                    'max-neighbors': 5,
+                    'density-threshold': 50,
+                    distance: 170,
+                    gravity: 0.16,
+                    repel: 1.6,
+                    wrap: true,
+                    well: false,
+                    vortex: true,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 280,
+                    'diamond-bloom': 20,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 6,
+                    symmetry: 2,
+                    crt: true,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: true,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            },
+            {
+                name: 'Frost Circuit',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 340,
+                    size: 5.0,
+                    'max-neighbors': 4,
+                    'density-threshold': 48,
+                    distance: 190,
+                    gravity: 0.11,
+                    repel: 1.5,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 190,
+                    'diamond-bloom': 18,
+                    'glow-luminance': 0.04,
+                    'pulse-speed': 2,
+                    symmetry: 3,
+                    crt: false,
+                    additive: false,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: false,
+                    fill: true,
+                    color: false,
+                    shockwave: false,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: true
+                }
+            },
+            {
+                name: 'Plasma Rain',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 410,
+                    size: 4.7,
+                    'max-neighbors': 4,
+                    'density-threshold': 42,
+                    distance: 160,
+                    gravity: 0.18,
+                    repel: 1.4,
+                    wrap: true,
+                    well: false,
+                    vortex: false,
+                    flow: false,
+                    bullet: true,
+                    'light-mode': false,
+                    'bg-hue': 320,
+                    'diamond-bloom': 22,
+                    'glow-luminance': 0.06,
+                    'pulse-speed': 4,
+                    symmetry: 2,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: true,
+                    virus: false,
+                    kinetic: true,
+                    trail: true,
+                    fill: true,
+                    color: true,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: true
+                }
+            },
+            {
+                name: 'Liminal Shore',
+                config: {
+                    engineTimeScale: 1.0,
+                    density: 330,
+                    size: 5.6,
+                    'max-neighbors': 3,
+                    'density-threshold': 40,
+                    distance: 185,
+                    gravity: 0.12,
+                    repel: 1.2,
+                    wrap: false,
+                    well: false,
+                    vortex: false,
+                    flow: true,
+                    bullet: true,
+                    'light-mode': true,
+                    'bg-hue': 50,
+                    'diamond-bloom': 24,
+                    'glow-luminance': 0.05,
+                    'pulse-speed': 3,
+                    symmetry: 1,
+                    crt: false,
+                    additive: true,
+                    parallax: false,
+                    chromatic: false,
+                    virus: false,
+                    kinetic: false,
+                    trail: true,
+                    fill: true,
+                    color: false,
+                    shockwave: true,
+                    flock: false,
+                    fluid: false,
+                    fire: false,
+                    rain: false
+                }
+            }
+        ];
+
+        function jitterSliderValue(base, el) {
+            let value = base;
+            if (typeof base === 'number') {
+                const min = parseFloat(el.min);
+                const max = parseFloat(el.max);
+                const span = max - min;
+                const jitterAmount = span * 0.1;
+                value = base + (Math.random() - 0.5) * 2 * jitterAmount;
+                value = Math.max(min, Math.min(max, value));
+                const step = parseFloat(el.step || '1');
+                if (!isNaN(step) && step > 0) {
+                    value = Math.round(value / step) * step;
+                }
+            }
+            return value;
+        }
+
+        function applyChaosPreset(preset) {
+            const config = preset.config || {};
+
+            Object.keys(config).forEach(key => {
+                const sliderEl = document.getElementById(key);
+                const toggleEl = document.getElementById(key + '-toggle');
+
+                if (sliderEl && sliderEl.type === 'range') {
+                    const jittered = jitterSliderValue(config[key], sliderEl);
+                    sliderEl.value = jittered;
+                    sliderEl.dispatchEvent(new Event('input'));
+                } else if (toggleEl && toggleEl.type === 'checkbox') {
+                    toggleEl.checked = !!config[key];
+                    toggleEl.dispatchEvent(new Event('change'));
+                } else if (key in settings) {
+                    settings[key] = config[key];
+                }
+            });
+
+            if (config.colors) {
+                ['core', 'glow', 'line', 'fill'].forEach(channel => {
+                    if (typeof config.colors[channel] === 'number') {
+                        settings.colors[channel] = config.colors[channel];
+                        const picker = document.getElementById('col-' + channel);
+                        if (picker) picker.value = intToHexString(config.colors[channel]);
+                    }
+                });
+            }
+
+            const chaosBtn = document.getElementById('chaos-btn');
+            if (chaosBtn) {
+                const originalText = '🎲 Chaos Scene';
+                chaosBtn.textContent = '🎲 ' + preset.name;
+                clearTimeout(chaosBtn._resetTimeout);
+                chaosBtn._resetTimeout = setTimeout(() => {
+                    chaosBtn.textContent = originalText;
+                }, 1800);
+            }
+        }
+
+        function randomizeChaosScene() {
+            if (!chaosPresets.length) return;
+            const preset = chaosPresets[Math.floor(Math.random() * chaosPresets.length)];
+            applyChaosPreset(preset);
         }
 
         sliders.forEach(s => {
@@ -474,12 +1306,21 @@
             });
         });
 
+        document.getElementById('chaos-btn').addEventListener('click', () => {
+            randomizeChaosScene();
+        });
+
         document.getElementById('snap-btn').addEventListener('click', () => {
-            app.renderer.extract.canvas(app.stage).toBlob(b => {
+            const canvas = app.view;
+            if (!canvas || !canvas.toBlob) return;
+
+            canvas.toBlob(blob => {
+                if (!blob) return;
                 const a = document.createElement('a');
                 document.body.append(a);
-                a.download = 'freakin-fractals-icon.png';
-                a.href = URL.createObjectURL(b);
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                a.download = `freakin-fractals-screenshot-${timestamp}.png`;
+                a.href = URL.createObjectURL(blob);
                 a.click();
                 a.remove();
             });
