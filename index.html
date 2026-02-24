@@ -76,7 +76,6 @@
         .virus-label { color: #ff5566 !important; font-weight: bold; }
         .wow-label { color: #ffbb00 !important; font-weight: bold; text-shadow: 0 0 8px rgba(255, 180, 0, 0.4); }
         .bloom-label { color: #d4aaff !important; font-weight: bold; }
-        .crt-label { color: #ff00ff !important; font-weight: bold; text-shadow: 0 0 5px #ff00ff;}
         .webgl-badge { color: #ff00aa; font-size: 0.7rem; float: right; border: 1px solid #ff00aa; padding: 2px 4px; border-radius: 4px;}
         
         .disabled-picker { opacity: 0.3; pointer-events: none; }
@@ -204,10 +203,6 @@
             </div>
 
             <div class="control-group">
-                <label for="crt-toggle" class="crt-label">CRT / Retro Mode: <input type="checkbox" id="crt-toggle"></label>
-            </div>
-
-            <div class="control-group">
                 <label for="additive-toggle" class="wow-label">Additive Supernova: <input type="checkbox" id="additive-toggle" checked></label>
             </div>
             <div class="control-group">
@@ -266,32 +261,6 @@
         mainStage.addChild(shockwaveGraphics);
         app.stage.addChild(mainStage);
 
-        const crtFragSource = `
-            precision mediump float;
-            varying vec2 vTextureCoord;
-            uniform sampler2D uSampler;
-            uniform float time;
-            void main(void) {
-                vec2 coord = vTextureCoord;
-                vec2 center = vec2(0.5, 0.5);
-                vec2 off_center = coord - center;
-                off_center *= 1.0 + 0.3 * pow(abs(off_center.yx), vec2(2.5));
-                coord = center + off_center;
-                if (coord.x > 1.0 || coord.x < 0.0 || coord.y > 1.0 || coord.y < 0.0) {
-                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                } else {
-                    vec4 color = texture2D(uSampler, coord);
-                    float scanline = sin(coord.y * 800.0 + time * 5.0) * 0.1;
-                    color.rgb -= scanline;
-                    float split = 0.003;
-                    color.r = texture2D(uSampler, vec2(coord.x + split, coord.y)).r;
-                    color.b = texture2D(uSampler, vec2(coord.x - split, coord.y)).b;
-                    gl_FragColor = color;
-                }
-            }
-        `;
-        const crtFilter = new PIXI.Filter(null, crtFragSource, { time: 0 });
-
         const diamondBlur = new PIXI.BlurFilter();
         diamondBlur.blur = 5;
         diamondBlur.quality = 2; 
@@ -316,7 +285,7 @@
         const glowTexture = app.renderer.generateTexture(glowTexGraphics);
 
         const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry'];
-        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'crt-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle'];
+        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle'];
         const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
 
         let settings = {
@@ -339,7 +308,6 @@
             'glow-luminance': 0.03, 
             'pulse-speed': 0, 
             symmetry: 1, 
-            crt: false,
             additive: true, 
             parallax: false,
             chromatic: false,
@@ -436,7 +404,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 3,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -474,7 +441,6 @@
                     'glow-luminance': 0.06,
                     'pulse-speed': 3,
                     symmetry: 3,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -512,7 +478,6 @@
                     'glow-luminance': 0.07,
                     'pulse-speed': 5,
                     symmetry: 1,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -550,7 +515,6 @@
                     'glow-luminance': 0.03,
                     'pulse-speed': 2,
                     symmetry: 2,
-                    crt: false,
                     additive: false,
                     parallax: false,
                     chromatic: false,
@@ -588,7 +552,6 @@
                     'glow-luminance': 0.06,
                     'pulse-speed': 5,
                     symmetry: 3,
-                    crt: true,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -626,7 +589,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 3,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -664,7 +626,6 @@
                     'glow-luminance': 0.04,
                     'pulse-speed': 3,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -702,7 +663,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 2,
                     symmetry: 1,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -740,7 +700,6 @@
                     'glow-luminance': 0.06,
                     'pulse-speed': 4,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -778,7 +737,6 @@
                     'glow-luminance': 0.04,
                     'pulse-speed': 4,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -816,7 +774,6 @@
                     'glow-luminance': 0.04,
                     'pulse-speed': 1,
                     symmetry: 2,
-                    crt: false,
                     additive: false,
                     parallax: false,
                     chromatic: false,
@@ -854,7 +811,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 2,
                     symmetry: 1,
-                    crt: true,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -892,7 +848,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 4,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -930,7 +885,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 3,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -968,7 +922,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 4,
                     symmetry: 1,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -1006,7 +959,6 @@
                     'glow-luminance': 0.06,
                     'pulse-speed': 5,
                     symmetry: 3,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -1044,7 +996,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 6,
                     symmetry: 2,
-                    crt: true,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -1082,7 +1033,6 @@
                     'glow-luminance': 0.04,
                     'pulse-speed': 2,
                     symmetry: 3,
-                    crt: false,
                     additive: false,
                     parallax: false,
                     chromatic: false,
@@ -1120,7 +1070,6 @@
                     'glow-luminance': 0.06,
                     'pulse-speed': 4,
                     symmetry: 2,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: true,
@@ -1158,7 +1107,6 @@
                     'glow-luminance': 0.05,
                     'pulse-speed': 3,
                     symmetry: 1,
-                    crt: false,
                     additive: true,
                     parallax: false,
                     chromatic: false,
@@ -1307,10 +1255,6 @@
 
                 if (key === 'virus') handleVirusToggle(e.target.checked);
                 if (key === 'light-mode') updateBackgroundColor();
-                if (key === 'crt') {
-                    if (settings['crt']) app.stage.filters = [crtFilter];
-                    else app.stage.filters = null;
-                }
             });
         });
 
@@ -1727,10 +1671,6 @@
 
             if (settings['pulse-speed'] > 0) {
                 pulsePhase += 0.02 * settings['pulse-speed'];
-            }
-
-            if (settings['crt']) {
-                crtFilter.uniforms.time += 0.01;
             }
 
             if (settings.rain && Math.random() < 0.08) {
