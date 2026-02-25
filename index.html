@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Freakin Fractals</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-filters@5.2.1/dist/pixi-filters.js"></script>
     <style>
         body,
         html {
@@ -385,8 +386,20 @@
                 <label for="shockwave-toggle">Visual Shockwave: <input type="checkbox" id="shockwave-toggle"></label>
             </div>
             <div class="control-group">
+                <label for="depth3D-toggle" style="color:#dca3ff;">True 3D Nebula Depth: <input type="checkbox"
+                        id="depth3D-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="bokeh-toggle" style="color:#dca3ff;">Cinematic Depth of Field: <input type="checkbox"
+                        id="bokeh-toggle"></label>
+            </div>
+            <div class="control-group">
                 <label for="lightning-toggle" class="wow-label" style="color:#00ffff;">Lightning Storm: <input
                         type="checkbox" id="lightning-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="gol-toggle" class="bloom-label">Conway's Game of Life: <input type="checkbox"
+                        id="gol-toggle"></label>
             </div>
 
             <h3>Interactive Modes</h3>
@@ -400,6 +413,8 @@
                         <option value="vortex-cw">Vortex (Orbit CW)</option>
                         <option value="vortex-ccw">Vortex (Orbit CCW)</option>
                         <option value="eraser">Eraser (Medium)</option>
+                        <option value="blackhole" style="color: #ff33aa; font-weight: bold;">Black Hole (Singularity)
+                        </option>
                     </select>
                 </div>
                 <div class="control-group">
@@ -480,8 +495,28 @@
             glowTexGraphics.endFill();
             const glowTexture = app.renderer.generateTexture(glowTexGraphics);
 
+            // --- Cache Pre-Rendered Blurred Textures for Bokeh ---
+            const textureCache = {
+                core: { sharp: diamondTexture, blur1: null, blur2: null, blur3: null },
+                glow: { sharp: glowTexture, blur1: null, blur2: null, blur3: null }
+            };
+
+            const blurFilter1 = new PIXI.BlurFilter(); blurFilter1.blur = 2; blurFilter1.quality = 2;
+            const blurFilter2 = new PIXI.BlurFilter(); blurFilter2.blur = 6; blurFilter2.quality = 2;
+            const blurFilter3 = new PIXI.BlurFilter(); blurFilter3.blur = 12; blurFilter3.quality = 2;
+
+            texGraphics.filters = [blurFilter1]; textureCache.core.blur1 = app.renderer.generateTexture(texGraphics);
+            texGraphics.filters = [blurFilter2]; textureCache.core.blur2 = app.renderer.generateTexture(texGraphics);
+            texGraphics.filters = [blurFilter3]; textureCache.core.blur3 = app.renderer.generateTexture(texGraphics);
+            texGraphics.filters = null; // Clean up
+
+            glowTexGraphics.filters = [blurFilter1]; textureCache.glow.blur1 = app.renderer.generateTexture(glowTexGraphics);
+            glowTexGraphics.filters = [blurFilter2]; textureCache.glow.blur2 = app.renderer.generateTexture(glowTexGraphics);
+            glowTexGraphics.filters = [blurFilter3]; textureCache.glow.blur3 = app.renderer.generateTexture(glowTexGraphics);
+            glowTexGraphics.filters = null; // Clean up
+
             const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
-            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle'];
+            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'depth3D-toggle', 'bokeh-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle', 'gol-toggle'];
             const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
 
             let settings = {
@@ -514,12 +549,15 @@
                 fill: true,
                 color: true,
                 shockwave: false,
+                depth3D: false,
+                bokeh: false,
                 flock: false,
                 fluid: false,
                 fire: false,
                 rain: false,
                 audio: false,
                 lightning: false,
+                gameOfLife: false,
                 brushType: 'off',
                 'audio-sensitivity': 1.0,
                 shatterRadius: 600,
@@ -1578,7 +1616,11 @@
                 const el = document.getElementById(t);
                 el.addEventListener('change', e => {
                     const key = t.replace('-toggle', '');
-                    settings[key] = e.target.checked;
+                    if (key === 'gol') {
+                        settings.gameOfLife = e.target.checked;
+                    } else {
+                        settings[key] = e.target.checked;
+                    }
 
                     if (key === 'color') updatePickerState();
 
@@ -1689,6 +1731,10 @@
             });
 
             let diamonds = [], shockwaves = [], paintedNodes = [], activeLightnings = [], mouse = { x: null, y: null };
+            let golGrid = [];
+            const GOL_CELL_SIZE = 20;
+            let golCols = 0, golRows = 0;
+            let golTimer = 0;
             let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
             let gyro = { x: 0, y: 0 };
             let screenShake = 0;
@@ -1862,9 +1908,16 @@
                 constructor() {
                     this.x = Math.random() * app.screen.width;
                     this.y = Math.random() * app.screen.height;
-                    this.vx = (Math.random() - 0.5) * 4; this.vy = (Math.random() - 0.5) * 4;
+                    this.z = Math.random() * 1000; // Z-axis from 0 (close) to 1000 (far)
+                    this.vx = (Math.random() - 0.5) * 4;
+                    this.vy = (Math.random() - 0.5) * 4;
+                    this.vz = (Math.random() - 0.5) * 1.5;
                     this.baseVx = this.vx; this.baseVy = this.vy;
                     this.glow = 0; this.infected = false;
+
+                    // Pre-allocate projection coordinates
+                    this.projX = this.x;
+                    this.projY = this.y;
 
                     const hue = Math.random() * 360;
                     this.colorHex = hslToHex(hue, 80, 60);
@@ -2173,6 +2226,23 @@
                         }
                     }
 
+                    // --- DEPTH PROJECTION LOGIC ---
+                    // Compute basic Z motion when 3D is active
+                    if (settings.depth3D) {
+                        this.z += this.vz * settings.engineTimeScale;
+                        // Wrap Z space
+                        if (this.z > 1000) this.z = 0;
+                        if (this.z < 0) this.z = 1000;
+                    }
+
+                    // Parallax focal length scaling
+                    let focalLength = 300;
+                    let projScale = settings.depth3D ? focalLength / (focalLength + this.z) : 1;
+
+                    // Compute projected physical coordinates (for exact drawing positions)
+                    this.projX = centerX + (this.x - centerX) * projScale;
+                    this.projY = centerY + (this.y - centerY) * projScale;
+
                     this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx ** 2 + this.vy ** 2) - 2.5) / 12));
 
                     let pulseScale = 1.0;
@@ -2180,8 +2250,9 @@
                         pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
                     }
 
-                    let coreSize = settings.size * pulseScale;
-                    let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
+                    // Scale particle by its Z-depth ratio map
+                    let coreSize = settings.size * pulseScale * projScale;
+                    let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale * projScale;
 
                     // --- COLOR LOGIC ---
                     let color;
@@ -2200,6 +2271,31 @@
                         alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
                     }
 
+                    // Distant particles fade out into the dark expanse of space
+                    if (settings.depth3D) {
+                        alpha *= (1 - (this.z / 1000));
+                    }
+
+                    // --- BOKEH DOP TEXTURE SWAP LOGIC ---
+                    let texCore = textureCache.core.sharp;
+                    let texGlow = textureCache.glow.sharp;
+
+                    if (settings.depth3D && settings.bokeh) {
+                        let focalPlane = 300; // Perfect focus distance
+                        let distFromFocus = Math.abs(this.z - focalPlane);
+
+                        if (distFromFocus > 500) {
+                            texCore = textureCache.core.blur3;
+                            texGlow = textureCache.glow.blur3;
+                        } else if (distFromFocus > 300) {
+                            texCore = textureCache.core.blur2;
+                            texGlow = textureCache.glow.blur2;
+                        } else if (distFromFocus > 150) {
+                            texCore = textureCache.core.blur1;
+                            texGlow = textureCache.glow.blur1;
+                        }
+                    }
+
                     let count = this.sprites.length;
                     let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8));
                     let relX = this.x - centerX;
@@ -2210,20 +2306,23 @@
                         let g = this.glowSprites[i];
 
                         if (count === 1) {
-                            s.x = this.x; s.y = this.y;
-                            g.x = this.x; g.y = this.y;
+                            s.x = this.projX; s.y = this.projY;
+                            g.x = this.projX; g.y = this.projY;
                         } else {
                             let theta = angleStep * i;
                             let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
                             let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
-                            s.x = centerX + rotX; s.y = centerY + rotY;
-                            g.x = centerX + rotX; g.y = centerY + rotY;
+                            // Symmetrical instances also scale depth positionally towards the screen center!
+                            s.x = centerX + (rotX * projScale); s.y = centerY + (rotY * projScale);
+                            g.x = centerX + (rotX * projScale); g.y = centerY + (rotY * projScale);
                         }
 
+                        s.texture = texCore;
                         s.tint = color;
                         s.alpha = alpha;
                         s.width = coreSize; s.height = coreSize;
 
+                        g.texture = texGlow;
                         if (settings.color || settings.fire) {
                             g.tint = color;
                         } else {
@@ -2244,6 +2343,24 @@
                     d.destroy();
                 }
             }
+
+            const golGraphics = new PIXI.Graphics();
+            mainStage.addChildAt(golGraphics, 1); // Insert into mainStage above fadeLayer
+
+            function initGOLGrid() {
+                golCols = Math.ceil(app.screen.width / GOL_CELL_SIZE);
+                golRows = Math.ceil(app.screen.height / GOL_CELL_SIZE);
+                golGrid = new Array(golCols).fill(0).map(() => new Array(golRows).fill(0).map(() => Math.random() < 0.2 ? 1 : 0));
+            }
+
+            // Listen for GOL toggle to initialize
+            document.getElementById('gol-toggle').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    initGOLGrid();
+                } else {
+                    golGraphics.clear();
+                }
+            });
 
             app.ticker.add((delta) => {
                 frames++; animationTime += 0.01;
@@ -2291,6 +2408,76 @@
                     fadeLayer.lineStyle(2, 0xffaa00, 0.8); // Orange/Yellow circle matching the Clear Canvas button
                     fadeLayer.drawCircle(mouse.x, mouse.y, 40);
                     fadeLayer.lineStyle(0);
+                }
+
+                // --- Game of Life Logic ---
+                if (settings.gameOfLife) {
+                    if (golGrid.length === 0 || golGrid[0].length === 0) {
+                        initGOLGrid();
+                    }
+
+                    golTimer++;
+                    if (golTimer >= 10) { // Evaluate rules every 10 frames
+                        golTimer = 0;
+                        let nextGrid = new Array(golCols).fill(0).map(() => new Array(golRows).fill(0));
+
+                        for (let col = 0; col < golCols; col++) {
+                            for (let row = 0; row < golRows; row++) {
+                                let state = golGrid[col][row];
+                                let neighbors = 0;
+
+                                // Count 8 neighbors
+                                for (let i = -1; i <= 1; i++) {
+                                    for (let j = -1; j <= 1; j++) {
+                                        if (i === 0 && j === 0) continue;
+                                        // Wrap around edges
+                                        let c = (col + i + golCols) % golCols;
+                                        let r = (row + j + golRows) % golRows;
+                                        neighbors += golGrid[c][r];
+                                    }
+                                }
+
+                                // Apply Rules
+                                if (state === 0 && neighbors === 3) {
+                                    nextGrid[col][row] = 1; // Reproduction
+                                } else if (state === 1 && (neighbors < 2 || neighbors > 3)) {
+                                    nextGrid[col][row] = 0; // Death
+                                } else {
+                                    nextGrid[col][row] = state; // Survival
+                                }
+
+                                // Interactive Spark: Diamond particles near grid cells can spark life
+                                if (nextGrid[col][row] === 0 && Math.random() < 0.05) {
+                                    // Check if any diamond is in this cell block
+                                    let cellX = col * GOL_CELL_SIZE;
+                                    let cellY = row * GOL_CELL_SIZE;
+                                    for (let d of diamonds) {
+                                        if (d.x >= cellX && d.x < cellX + GOL_CELL_SIZE &&
+                                            d.y >= cellY && d.y < cellY + GOL_CELL_SIZE) {
+                                            if (Math.random() < 0.3) nextGrid[col][row] = 1; // 30% chance to spark
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        golGrid = nextGrid;
+                    }
+
+                    // Render GOL Overlay
+                    golGraphics.clear();
+                    golGraphics.beginFill(0xbdffff, 0.4); // Bright cyan inner
+                    golGraphics.lineStyle(2, 0x88ffff, 0.9); // Glowing cyan edges
+                    for (let col = 0; col < golCols; col++) {
+                        for (let row = 0; row < golRows; row++) {
+                            if (golGrid[col][row] === 1) {
+                                golGraphics.drawRect(col * GOL_CELL_SIZE + 2, row * GOL_CELL_SIZE + 2, GOL_CELL_SIZE - 4, GOL_CELL_SIZE - 4);
+                            }
+                        }
+                    }
+                    golGraphics.endFill();
+                } else {
+                    golGraphics.clear();
                 }
 
                 glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
@@ -2568,7 +2755,11 @@
                                     for (let s = 0; s < symCount; s++) {
                                         let theta = angleStep * s;
 
-                                        const rot = (px, py) => {
+                                        const rot = (node) => {
+                                            // Handle dynamically changing between 3D depth and 2D flat coordinates
+                                            let px = settings.depth3D && node.projX ? node.projX : node.x;
+                                            let py = settings.depth3D && node.projY ? node.projY : node.y;
+
                                             let rx = px - centerX;
                                             let ry = py - centerY;
                                             return {
@@ -2577,9 +2768,9 @@
                                             };
                                         };
 
-                                        let p1 = rot(d1.x, d1.y);
-                                        let p2 = rot(d2.x, d2.y);
-                                        let p3 = rot(d3.x, d3.y);
+                                        let p1 = rot(d1);
+                                        let p2 = rot(d2);
+                                        let p3 = rot(d3);
 
                                         if (settings.fill) {
                                             let fillColor = settings.color ? color : settings.colors.fill;
@@ -2614,6 +2805,68 @@
                     }
                     return sw.opacity > 0;
                 });
+
+                // --- Singularity (Black Hole) Physics & Distortion ---
+                let singularityFilters = [];
+                let activeSingularities = paintedNodes.filter(p => p.type === 'blackhole');
+
+                if (activeSingularities.length > 0) {
+                    activeSingularities.forEach((node, nodeIdx) => {
+                        // Only add visual filters if the library loaded correctly and we haven't hit the GPU limit (max 3 filters)
+                        if (singularityFilters.length < 3 && typeof PIXI.filters !== 'undefined' && PIXI.filters.BulgePinchFilter) {
+                            if (!node.filter) {
+                                try {
+                                    node.filter = new PIXI.filters.BulgePinchFilter();
+                                    node.filter.radius = 350; // Vast distortion field
+                                    node.filter.strength = 1.0; // Maximum pinch inward
+                                } catch (e) {
+                                    node.filter = { failed: true };
+                                }
+                            }
+
+                            if (node.filter && !node.filter.failed) {
+                                // Update dynamic properties
+                                node.filter.center = [node.x / app.screen.width, node.y / app.screen.height];
+                                singularityFilters.push(node.filter);
+                            }
+                        }
+
+                        // Event Horizon Physics
+                        for (let i = diamonds.length - 1; i >= 0; i--) {
+                            let d = diamonds[i];
+                            let dx = d.x - node.x;
+                            let dy = d.y - node.y;
+                            let distSq = dx * dx + dy * dy;
+
+                            // 1. Annihilation at Event Horizon (Recycle Diamond)
+                            if (distSq < 1600) { // 40px radius Event Horizon
+                                // RECYCLE the diamond instead of destroying and re-instantiating PIXI graphics!
+                                // Creating `new PIXI.Graphics` repeatedly per frame crashes the browser!
+                                if (Math.random() > 0.5) {
+                                    d.x = Math.random() > 0.5 ? 0 : app.screen.width;
+                                    d.y = Math.random() * app.screen.height;
+                                } else {
+                                    d.x = Math.random() * app.screen.width;
+                                    d.y = Math.random() > 0.5 ? 0 : app.screen.height;
+                                }
+                                d.vx = (Math.random() - 0.5) * 4;
+                                d.vy = (Math.random() - 0.5) * 4;
+                                d.glow = 0;
+                            }
+                            // 2. Accretion Disk Gravity Pull
+                            else if (distSq < 90000) { // 300px gravity well
+                                let dist = Math.sqrt(distSq);
+                                let force = (300 - dist) / 300;
+                                d.vx -= (dx / dist) * force * 15.0; // Pulls strongly INWARD
+                                d.vy -= (dy / dist) * force * 15.0;
+                            }
+                        }
+                    });
+                }
+
+                // Apply spatial distortions
+                mainStage.filters = singularityFilters.length > 0 ? singularityFilters : null;
+
             });
 
             updateFilters();
