@@ -472,7 +472,7 @@
             const glowTexture = app.renderer.generateTexture(glowTexGraphics);
 
             const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
-            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'paint-toggle'];
+            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle'];
             const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
 
             let settings = {
@@ -2001,213 +2001,214 @@
                             }
                         }
                     }
-                }
 
-                // --- AI LOGIC ---
-                if(settings.flock || settings.fluid) {
-                if (settings.fluid) this.vy += 0.2 * settings.engineTimeScale;
+                    // --- AI LOGIC ---
+                    if (settings.flock || settings.fluid) {
+                        if (settings.fluid) this.vy += 0.2 * settings.engineTimeScale;
 
-                let isLeaderActive = (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x));
-                let distToLeader = isLeaderActive ? Math.sqrt((mouse.x - this.x) ** 2 + (mouse.y - this.y) ** 2) : Infinity;
+                        let isLeaderActive = (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x));
+                        let distToLeader = isLeaderActive ? Math.sqrt((mouse.x - this.x) ** 2 + (mouse.y - this.y) ** 2) : Infinity;
 
-                let separationDist = 50;
-                if (isLeaderActive && distToLeader < 400 && settings.flock) {
-                    separationDist = 20 + (distToLeader / 400) * 30;
-                }
-                let rangeSq = 80 * 80;
+                        let separationDist = 50;
+                        if (isLeaderActive && distToLeader < 400 && settings.flock) {
+                            separationDist = 20 + (distToLeader / 400) * 30;
+                        }
+                        let rangeSq = 80 * 80;
 
-                let gx = Math.floor(this.x / cellSize);
-                let gy = Math.floor(this.y / cellSize);
-                let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
-                let count = 0;
+                        let gx = Math.floor(this.x / cellSize);
+                        let gy = Math.floor(this.y / cellSize);
+                        let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
+                        let count = 0;
 
-                for (let nx = gx - 1; nx <= gx + 1; nx++) {
-                    for (let ny = gy - 1; ny <= gy + 1; ny++) {
-                        let key = nx + ',' + ny;
-                        if (boidGrid[key]) {
-                            boidGrid[key].forEach(other => {
-                                if (other !== this) {
-                                    let dx = this.x - other.x;
-                                    let dy = this.y - other.y;
-                                    let dSq = dx * dx + dy * dy;
-                                    if (dSq < rangeSq && dSq > 0) {
-                                        if (other.vx !== undefined) {
-                                            alignX += other.vx;
-                                            alignY += other.vy;
+                        for (let nx = gx - 1; nx <= gx + 1; nx++) {
+                            for (let ny = gy - 1; ny <= gy + 1; ny++) {
+                                let key = nx + ',' + ny;
+                                if (boidGrid[key]) {
+                                    boidGrid[key].forEach(other => {
+                                        if (other !== this) {
+                                            let dx = this.x - other.x;
+                                            let dy = this.y - other.y;
+                                            let dSq = dx * dx + dy * dy;
+                                            if (dSq < rangeSq && dSq > 0) {
+                                                if (other.vx !== undefined) {
+                                                    alignX += other.vx;
+                                                    alignY += other.vy;
+                                                }
+                                                cohX += other.x;
+                                                cohY += other.y;
+                                                let d = Math.sqrt(dSq);
+                                                if (d < separationDist) {
+                                                    let str = (separationDist - d) / separationDist;
+                                                    sepX += (dx / d) * str;
+                                                    sepY += (dy / d) * str;
+                                                }
+                                                count++;
+                                            }
                                         }
-                                        cohX += other.x;
-                                        cohY += other.y;
-                                        let d = Math.sqrt(dSq);
-                                        if (d < separationDist) {
-                                            let str = (separationDist - d) / separationDist;
-                                            sepX += (dx / d) * str;
-                                            sepY += (dy / d) * str;
-                                        }
-                                        count++;
-                                    }
+                                    });
                                 }
-                            });
+                            }
+                        }
+
+                        if (count > 0) {
+                            let speed = 0.15;
+                            this.vx += (alignX / count - this.vx) * speed * 0.8;
+                            this.vy += (alignY / count - this.vy) * speed * 0.8;
+                            this.vx += ((cohX / count) - this.x) * speed * 0.015;
+                            this.vy += ((cohY / count) - this.y) * speed * 0.015;
+                            this.vx += sepX * speed * 8.0;
+                            this.vy += sepY * speed * 8.0;
+                        } else if (settings.flock) {
+                            this.vx += (Math.random() - 0.5) * 0.1;
+                            this.vy += (Math.random() - 0.5) * 0.1;
+                        }
+
+                        if (isLeaderActive && settings.flock) {
+                            let dx = mouse.x - this.x;
+                            let dy = mouse.y - this.y;
+                            let dist = Math.sqrt(dx * dx + dy * dy);
+                            let reactionFalloff = 600;
+                            let reactivity = Math.max(0, 1.0 - (dist / reactionFalloff));
+                            reactivity = Math.pow(reactivity, 3);
+                            let factor = 0.03 * reactivity;
+                            this.vx += dx * factor;
+                            this.vy += dy * factor;
+                        }
+
+                        let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                        if (currentSpeed < 2.0) {
+                            if (currentSpeed === 0) { this.vx = Math.random() - 0.5; this.vy = Math.random() - 0.5; }
+                            else {
+                                let factor = 2.0 / currentSpeed;
+                                this.vx *= factor; this.vy *= factor;
+                            }
+                        }
+                        let maxSpeed = isLeaderActive ? 9.0 : 6.0;
+                        if (currentSpeed > maxSpeed) {
+                            let factor = maxSpeed / currentSpeed;
+                            this.vx *= factor; this.vy *= factor;
                         }
                     }
-                }
 
-                if (count > 0) {
-                    let speed = 0.15;
-                    this.vx += (alignX / count - this.vx) * speed * 0.8;
-                    this.vy += (alignY / count - this.vy) * speed * 0.8;
-                    this.vx += ((cohX / count) - this.x) * speed * 0.015;
-                    this.vy += ((cohY / count) - this.y) * speed * 0.015;
-                    this.vx += sepX * speed * 8.0;
-                    this.vy += sepY * speed * 8.0;
-                } else if (settings.flock) {
-                    this.vx += (Math.random() - 0.5) * 0.1;
-                    this.vy += (Math.random() - 0.5) * 0.1;
-                }
+                    if (settings.flow) {
+                        let nx = Math.sin(this.x * 0.005 + animationTime) * Math.cos(this.y * 0.005 - animationTime);
+                        let ny = Math.sin(this.y * 0.01 - animationTime) * Math.cos(this.x * 0.01 + animationTime);
+                        let flowAngle = (nx + ny) * Math.PI * 2;
+                        this.vx += Math.cos(flowAngle) * 0.2;
+                        this.vy += Math.sin(flowAngle) * 0.2;
+                    }
 
-                if (isLeaderActive && settings.flock) {
-                    let dx = mouse.x - this.x;
-                    let dy = mouse.y - this.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
-                    let reactionFalloff = 600;
-                    let reactivity = Math.max(0, 1.0 - (dist / reactionFalloff));
-                    reactivity = Math.pow(reactivity, 3);
-                    let factor = 0.03 * reactivity;
-                    this.vx += dx * factor;
-                    this.vy += dy * factor;
-                }
+                    if (settings.fire) {
+                        this.vy -= 0.1 * settings.engineTimeScale;
+                        this.vx += (Math.random() - 0.5) * 0.5 * settings.engineTimeScale;
+                        if (this.y < -50) {
+                            this.y = app.screen.height + 50;
+                            this.x = Math.random() * app.screen.width;
+                            this.vx = (Math.random() - 0.5) * 2;
+                            this.vy = (Math.random() * -2) - 1;
+                        }
+                    }
 
-                let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (currentSpeed < 2.0) {
-                    if (currentSpeed === 0) { this.vx = Math.random() - 0.5; this.vy = Math.random() - 0.5; }
-                    else {
-                        let factor = 2.0 / currentSpeed;
-                        this.vx *= factor; this.vy *= factor;
+                    if (settings.rain) {
+                        this.vx *= 0.9;
+                        this.vy *= 0.9;
+                        this.vy += Math.sin(this.x * 0.02 + animationTime * 2) * 0.05;
+                        this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
+                    }
+
+                    let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
+                    this.vx *= friction;
+                    this.vy *= friction;
+
+                    if (this.infected) {
+                        this.vx += Math.random() - 0.5;
+                        this.vy += Math.random() - 0.5;
+                    }
+                    else if (!settings.flock && !settings.fluid && !settings.fire && !settings.rain) {
+                        this.vx += (this.baseVx - this.vx) * 0.05;
+                        this.vy += (this.baseVy - this.vy) * 0.05;
+                    }
+
+                    this.x += this.vx * settings.engineTimeScale;
+                    this.y += this.vy * settings.engineTimeScale;
+
+                    if (settings.wrap) {
+                        if (this.x < -10) this.x = app.screen.width + 10;
+                        if (this.x > app.screen.width + 10) this.x = -10;
+                        if (this.y < -10) this.y = app.screen.height + 10;
+                        if (this.y > app.screen.height + 10) this.y = -10;
+                    } else {
+                        if (this.x < 0) { this.x = 0; this.vx *= -0.8; this.baseVx *= -1; }
+                        if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; this.baseVx *= -1; }
+                        if (this.y < 0) { this.y = 0; this.vy *= -0.8; this.baseVy *= -1; }
+                        if (this.y > app.screen.height) {
+                            this.y = app.screen.height;
+                            this.vy *= -0.6;
+                            this.vx *= 0.95;
+                            this.baseVy *= -1;
+                        }
+                    }
+
+                    this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx ** 2 + this.vy ** 2) - 2.5) / 12));
+
+                    let pulseScale = 1.0;
+                    if (settings['pulse-speed'] > 0) {
+                        pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
+                    }
+
+                    let coreSize = settings.size * pulseScale;
+                    let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
+
+                    // --- COLOR LOGIC ---
+                    let color;
+                    if (settings.fire) {
+                        let fireHue = Math.random() * 45;
+                        color = hslToHex(fireHue, 100, 60);
+                    } else if (settings.color) {
+                        color = this.infected ? 0xff2233 : this.colorHex;
+                    } else {
+                        color = this.infected ? 0xff2233 : settings.colors.core;
+                    }
+
+                    let alpha = settings.kinetic ? 0.05 + 0.95 * this.glow : 1;
+
+                    if (settings.rain) {
+                        alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
+                    }
+
+                    let count = this.sprites.length;
+                    let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8));
+                    let relX = this.x - centerX;
+                    let relY = this.y - centerY;
+
+                    for (let i = 0; i < count; i++) {
+                        let s = this.sprites[i];
+                        let g = this.glowSprites[i];
+
+                        if (count === 1) {
+                            s.x = this.x; s.y = this.y;
+                            g.x = this.x; g.y = this.y;
+                        } else {
+                            let theta = angleStep * i;
+                            let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
+                            let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
+                            s.x = centerX + rotX; s.y = centerY + rotY;
+                            g.x = centerX + rotX; g.y = centerY + rotY;
+                        }
+
+                        s.tint = color;
+                        s.alpha = alpha;
+                        s.width = coreSize; s.height = coreSize;
+
+                        if (settings.color || settings.fire) {
+                            g.tint = color;
+                        } else {
+                            g.tint = settings.colors.glow;
+                        }
+                        g.alpha = alpha;
+                        g.width = glowBaseSize; g.height = glowBaseSize;
                     }
                 }
-                let maxSpeed = isLeaderActive ? 9.0 : 6.0;
-                if (currentSpeed > maxSpeed) {
-                    let factor = maxSpeed / currentSpeed;
-                    this.vx *= factor; this.vy *= factor;
-                }
-            }
-
-            if (settings.flow) {
-                let nx = Math.sin(this.x * 0.005 + animationTime) * Math.cos(this.y * 0.005 - animationTime);
-                let ny = Math.sin(this.y * 0.01 - animationTime) * Math.cos(this.x * 0.01 + animationTime);
-                let flowAngle = (nx + ny) * Math.PI * 2;
-                this.vx += Math.cos(flowAngle) * 0.2;
-                this.vy += Math.sin(flowAngle) * 0.2;
-            }
-
-            if (settings.fire) {
-                this.vy -= 0.1 * settings.engineTimeScale;
-                this.vx += (Math.random() - 0.5) * 0.5 * settings.engineTimeScale;
-                if (this.y < -50) {
-                    this.y = app.screen.height + 50;
-                    this.x = Math.random() * app.screen.width;
-                    this.vx = (Math.random() - 0.5) * 2;
-                    this.vy = (Math.random() * -2) - 1;
-                }
-            }
-
-            if (settings.rain) {
-                this.vx *= 0.9;
-                this.vy *= 0.9;
-                this.vy += Math.sin(this.x * 0.02 + animationTime * 2) * 0.05;
-                this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
-            }
-
-            let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
-            this.vx *= friction;
-            this.vy *= friction;
-
-            if (this.infected) {
-                this.vx += Math.random() - 0.5;
-                this.vy += Math.random() - 0.5;
-            }
-            else if (!settings.flock && !settings.fluid && !settings.fire && !settings.rain) {
-                this.vx += (this.baseVx - this.vx) * 0.05;
-                this.vy += (this.baseVy - this.vy) * 0.05;
-            }
-
-            this.x += this.vx * settings.engineTimeScale;
-            this.y += this.vy * settings.engineTimeScale;
-
-            if (settings.wrap) {
-                if (this.x < -10) this.x = app.screen.width + 10;
-                if (this.x > app.screen.width + 10) this.x = -10;
-                if (this.y < -10) this.y = app.screen.height + 10;
-                if (this.y > app.screen.height + 10) this.y = -10;
-            } else {
-                if (this.x < 0) { this.x = 0; this.vx *= -0.8; this.baseVx *= -1; }
-                if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; this.baseVx *= -1; }
-                if (this.y < 0) { this.y = 0; this.vy *= -0.8; this.baseVy *= -1; }
-                if (this.y > app.screen.height) {
-                    this.y = app.screen.height;
-                    this.vy *= -0.6;
-                    this.vx *= 0.95;
-                    this.baseVy *= -1;
-                }
-            }
-
-            this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx ** 2 + this.vy ** 2) - 2.5) / 12));
-
-            let pulseScale = 1.0;
-            if (settings['pulse-speed'] > 0) {
-                pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
-            }
-
-            let coreSize = settings.size * pulseScale;
-            let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
-
-            // --- COLOR LOGIC ---
-            let color;
-            if (settings.fire) {
-                let fireHue = Math.random() * 45;
-                color = hslToHex(fireHue, 100, 60);
-            } else if (settings.color) {
-                color = this.infected ? 0xff2233 : this.colorHex;
-            } else {
-                color = this.infected ? 0xff2233 : settings.colors.core;
-            }
-
-            let alpha = settings.kinetic ? 0.05 + 0.95 * this.glow : 1;
-
-            if (settings.rain) {
-                alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
-            }
-
-            let count = this.sprites.length;
-            let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8));
-            let relX = this.x - centerX;
-            let relY = this.y - centerY;
-
-            for (let i = 0; i < count; i++) {
-                let s = this.sprites[i];
-                let g = this.glowSprites[i];
-
-                if (count === 1) {
-                    s.x = this.x; s.y = this.y;
-                    g.x = this.x; g.y = this.y;
-                } else {
-                    let theta = angleStep * i;
-                    let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
-                    let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
-                    s.x = centerX + rotX; s.y = centerY + rotY;
-                    g.x = centerX + rotX; g.y = centerY + rotY;
-                }
-
-                s.tint = color;
-                s.alpha = alpha;
-                s.width = coreSize; s.height = coreSize;
-
-                if (settings.color || settings.fire) {
-                    g.tint = color;
-                } else {
-                    g.tint = settings.colors.glow;
-                }
-                g.alpha = alpha;
-                g.width = glowBaseSize; g.height = glowBaseSize;
             }
 
             function adjustSwarmDensity() {
