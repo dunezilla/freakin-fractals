@@ -505,15 +505,22 @@
             const blurFilter2 = new PIXI.BlurFilter(); blurFilter2.blur = 6; blurFilter2.quality = 2;
             const blurFilter3 = new PIXI.BlurFilter(); blurFilter3.blur = 12; blurFilter3.quality = 2;
 
-            texGraphics.filters = [blurFilter1]; textureCache.core.blur1 = app.renderer.generateTexture(texGraphics);
-            texGraphics.filters = [blurFilter2]; textureCache.core.blur2 = app.renderer.generateTexture(texGraphics);
-            texGraphics.filters = [blurFilter3]; textureCache.core.blur3 = app.renderer.generateTexture(texGraphics);
-            texGraphics.filters = null; // Clean up
+            function generateBlurredTexture(graphics, filter, padding) {
+                graphics.filters = [filter];
+                let b = graphics.getLocalBounds();
+                let region = new PIXI.Rectangle(b.x - padding, b.y - padding, b.width + padding * 2, b.height + padding * 2);
+                let tex = app.renderer.generateTexture(graphics, { region: region, resolution: app.renderer.resolution || 1 });
+                graphics.filters = null;
+                return tex;
+            }
 
-            glowTexGraphics.filters = [blurFilter1]; textureCache.glow.blur1 = app.renderer.generateTexture(glowTexGraphics);
-            glowTexGraphics.filters = [blurFilter2]; textureCache.glow.blur2 = app.renderer.generateTexture(glowTexGraphics);
-            glowTexGraphics.filters = [blurFilter3]; textureCache.glow.blur3 = app.renderer.generateTexture(glowTexGraphics);
-            glowTexGraphics.filters = null; // Clean up
+            textureCache.core.blur1 = generateBlurredTexture(texGraphics, blurFilter1, 4);
+            textureCache.core.blur2 = generateBlurredTexture(texGraphics, blurFilter2, 12);
+            textureCache.core.blur3 = generateBlurredTexture(texGraphics, blurFilter3, 24);
+
+            textureCache.glow.blur1 = generateBlurredTexture(glowTexGraphics, blurFilter1, 4);
+            textureCache.glow.blur2 = generateBlurredTexture(glowTexGraphics, blurFilter2, 12);
+            textureCache.glow.blur3 = generateBlurredTexture(glowTexGraphics, blurFilter3, 24);
 
             const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
             const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'depth3D-toggle', 'bokeh-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle', 'gol-toggle'];
