@@ -406,6 +406,7 @@
                         <option value="repulsor">Repulsor (Wall)</option>
                         <option value="vortex-cw">Vortex (Orbit CW)</option>
                         <option value="vortex-ccw">Vortex (Orbit CCW)</option>
+                        <option value="eraser">Eraser (Medium)</option>
                     </select>
                 </div>
                 <div class="control-group">
@@ -1746,7 +1747,10 @@
             const onPointerDown = (e) => {
                 if (e.target.closest('#ui-panel')) return;
 
-                if (settings.brushType !== 'off') {
+                if (settings.brushType === 'eraser') {
+                    settings.isHolding = true;
+                    paintedNodes = paintedNodes.filter(p => Math.hypot(p.x - e.clientX, p.y - e.clientY) > 40);
+                } else if (settings.brushType !== 'off') {
                     // Paint mode logic
                     settings.isHolding = false;
                     paintedNodes.push({ x: e.clientX, y: e.clientY, type: settings.brushType });
@@ -1776,11 +1780,15 @@
                 }
 
                 if (settings.brushType !== 'off' && e.buttons > 0 && !e.target.closest('#ui-panel')) {
-                    // Throttle drawing based on distance to prevent lag
-                    let lastNode = paintedNodes[paintedNodes.length - 1];
-                    if (!lastNode || Math.hypot(e.clientX - lastNode.x, e.clientY - lastNode.y) > 15) {
-                        paintedNodes.push({ x: e.clientX, y: e.clientY, type: settings.brushType });
-                        if (paintedNodes.length > 500) paintedNodes.shift();
+                    if (settings.brushType === 'eraser') {
+                        paintedNodes = paintedNodes.filter(p => Math.hypot(p.x - e.clientX, p.y - e.clientY) > 40);
+                    } else {
+                        // Throttle drawing based on distance to prevent lag
+                        let lastNode = paintedNodes[paintedNodes.length - 1];
+                        if (!lastNode || Math.hypot(e.clientX - lastNode.x, e.clientY - lastNode.y) > 15) {
+                            paintedNodes.push({ x: e.clientX, y: e.clientY, type: settings.brushType });
+                            if (paintedNodes.length > 500) paintedNodes.shift();
+                        }
                     }
                 }
             };
@@ -2268,6 +2276,13 @@
                         fadeLayer.drawCircle(node.x, node.y, 4);
                         fadeLayer.endFill();
                     });
+                }
+
+                // Render Eraser Cursor Indicator
+                if (settings.brushType === 'eraser' && mouse.x !== null && mouse.y !== null) {
+                    fadeLayer.lineStyle(2, 0xffaa00, 0.8); // Orange/Yellow circle matching the Clear Canvas button
+                    fadeLayer.drawCircle(mouse.x, mouse.y, 40);
+                    fadeLayer.lineStyle(0);
                 }
 
                 glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
