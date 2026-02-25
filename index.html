@@ -404,7 +404,8 @@
                         <option value="off" selected>Off (Standard Interaction)</option>
                         <option value="gravity">Gravity (Stacking)</option>
                         <option value="repulsor">Repulsor (Wall)</option>
-                        <option value="vortex">Vortex (Orbit)</option>
+                        <option value="vortex-cw">Vortex (Orbit CW)</option>
+                        <option value="vortex-ccw">Vortex (Orbit CCW)</option>
                     </select>
                 </div>
                 <div class="control-group">
@@ -1986,11 +1987,18 @@
                                 let force = (150 - dist) / 150;
                                 this.vx -= (dx / dist) * force * emitterGrav * 2.5;
                                 this.vy -= (dy / dist) * force * emitterGrav * 2.5;
-                            } else if (brushType === 'vortex') {
+                            } else if (brushType.startsWith('vortex')) {
                                 // Rotational tangential force (+ pull towards center)
                                 let force = (150 - dist) / 150;
-                                let perpX = -dy / dist;
-                                let perpY = dx / dist;
+                                let perpX, perpY;
+
+                                if (brushType === 'vortex-cw') {
+                                    perpX = -dy / dist;
+                                    perpY = dx / dist;
+                                } else { // 'vortex-ccw'
+                                    perpX = dy / dist;
+                                    perpY = -dx / dist;
+                                }
 
                                 this.vx += perpX * force * emitterGrav * 1.5;
                                 this.vy += perpY * force * emitterGrav * 1.5;
@@ -2253,7 +2261,8 @@
                     paintedNodes.forEach(node => {
                         let nodeColor = settings.colors.core;
                         if (node.type === 'repulsor') nodeColor = 0xff3333; // Red
-                        else if (node.type === 'vortex') nodeColor = 0xaa33ff; // Purple
+                        else if (node.type === 'vortex-cw') nodeColor = 0xaa33ff; // Purple
+                        else if (node.type === 'vortex-ccw') nodeColor = 0xff33aa; // Pink
 
                         fadeLayer.beginFill(nodeColor, 0.8);
                         fadeLayer.drawCircle(node.x, node.y, 4);
