@@ -384,6 +384,10 @@
             <div class="control-group">
                 <label for="shockwave-toggle">Visual Shockwave: <input type="checkbox" id="shockwave-toggle"></label>
             </div>
+            <div class="control-group">
+                <label for="lightning-toggle" class="wow-label" style="color:#00ffff;">Lightning Storm: <input
+                        type="checkbox" id="lightning-toggle"></label>
+            </div>
 
             <h3>Interactive Modes</h3>
             <div class="control-group">
@@ -477,7 +481,7 @@
             const glowTexture = app.renderer.generateTexture(glowTexGraphics);
 
             const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
-            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle'];
+            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle'];
             const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
 
             let settings = {
@@ -515,6 +519,7 @@
                 fire: false,
                 rain: false,
                 audio: false,
+                lightning: false,
                 brushType: 'off',
                 'audio-sensitivity': 1.0,
                 shatterRadius: 600,
@@ -1683,7 +1688,7 @@
                 }
             });
 
-            let diamonds = [], shockwaves = [], paintedNodes = [], mouse = { x: null, y: null };
+            let diamonds = [], shockwaves = [], paintedNodes = [], activeLightnings = [], mouse = { x: null, y: null };
             let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
             let gyro = { x: 0, y: 0 };
             let screenShake = 0;
@@ -2357,6 +2362,105 @@
                     }
                 }
 
+                shockwaveGraphics.clear();
+
+                // --- Lightning Storm Logic ---
+                if (settings.lightning && diamonds.length > 0) {
+                    // Random chance to spawn a new lightning bolt
+                    if (Math.random() < 0.05) { // 5% chance per frame
+                        let startNode = diamonds[Math.floor(Math.random() * diamonds.length)];
+                        let pathLength = Math.floor(Math.random() * 15) + 5; // 5 to 20 segments
+                        let path = [startNode];
+                        let current = startNode;
+
+                        // Random walk through nearby neighbors to build the path
+                        for (let i = 0; i < pathLength; i++) {
+                            // Find neighbors within a reasonable distance (e.g. 150px)
+                            let neighbors = diamonds.filter(d =>
+                                d !== current &&
+                                !path.includes(d) &&
+                                Math.hypot(d.x - current.x, d.y - current.y) < 150
+                            );
+
+                            if (neighbors.length > 0) {
+                                // Pick a random neighbor
+                                current = neighbors[Math.floor(Math.random() * neighbors.length)];
+                                path.push(current);
+                            } else {
+                                break; // Dead end
+                            }
+                        }
+
+                        if (path.length > 2) {
+                            activeLightnings.push({ path: path, life: 1.0, hasExploded: false });
+
+                            // Optional: play a subtle zap sound for large strikes
+                            if (settings.audio && isAudioInitialized && path.length > 10) {
+                                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                if (audioCtx.state === 'suspended') audioCtx.resume();
+                                let osc = audioCtx.createOscillator();
+                                let gain = audioCtx.createGain();
+                                osc.type = 'sawtooth';
+                                osc.frequency.setValueAtTime(400 + Math.random() * 400, audioCtx.currentTime);
+                                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                                osc.connect(gain);
+                                gain.connect(audioCtx.destination);
+                                osc.start();
+                                osc.stop(audioCtx.currentTime + 0.1);
+                            }
+                        }
+                    }
+                }
+
+                // Render and manage active lightnings
+                for (let i = activeLightnings.length - 1; i >= 0; i--) {
+                    let l = activeLightnings[i];
+                    l.life -= 0.05; // Fades out over 20 frames
+
+                    if (l.life <= 0) {
+                        activeLightnings.splice(i, 1);
+                        continue;
+                    }
+
+                    // Draw the lightning path
+                    // Life goes from 1.0 down to 0. We want it to grow to full length midway, then retract.
+                    let progress = 1.0 - Math.abs((l.life - 0.5) * 2); // 0 -> 1 -> 0 curve
+                    let visibleSegments = Math.max(1, Math.floor(l.path.length * progress));
+
+                    shockwaveGraphics.lineStyle(3, 0xbdffff, l.life * 0.9); // Bright cyan
+                    shockwaveGraphics.moveTo(l.path[0].x, l.path[0].y);
+
+                    for (let j = 1; j < visibleSegments; j++) {
+                        // Add jitter to the lightning points
+                        let jitterX = (Math.random() - 0.5) * 8;
+                        let jitterY = (Math.random() - 0.5) * 8;
+                        shockwaveGraphics.lineTo(l.path[j].x + jitterX, l.path[j].y + jitterY);
+                    }
+                    shockwaveGraphics.lineStyle(0);
+
+                    // Add an explosive scatter effect to the end node when lightning hits full length
+                    if (progress > 0.9 && !l.hasExploded) {
+                        l.hasExploded = true;
+                        let endNode = l.path[l.path.length - 1];
+
+                        // Push away nearby particles
+                        diamonds.forEach(d => {
+                            if (d !== endNode) {
+                                let dx = d.x - endNode.x;
+                                let dy = d.y - endNode.y;
+                                let distSq = dx * dx + dy * dy;
+                                if (distSq < 15000) { // approx 122px radius
+                                    let force = (15000 - distSq) / 15000;
+                                    d.vx += (dx / Math.sqrt(distSq)) * force * 80; // massive pop
+                                    d.vy += (dy / Math.sqrt(distSq)) * force * 80;
+                                }
+                            }
+                        });
+                    }
+                }
+
                 let boidGrid = {};
                 let boidCell = 70;
                 if (settings.flock || settings.fluid || (paintedNodes.length > 0 && settings['emitter-gravity'] > 0)) {
@@ -2497,7 +2601,6 @@
                     });
                 }
 
-                shockwaveGraphics.clear();
                 shockwaves = shockwaves.filter(sw => {
                     sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
 
