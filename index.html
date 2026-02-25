@@ -398,2028 +398,2098 @@
 
             <h3>Interactive Modes</h3>
             <div class="control-group">
-                <label for="paint-toggle" class="wow-label">Draw Static Emitters: <input type="checkbox"
-                        id="paint-toggle"></label>
-            </div>
-            <div class="control-group">
-                <label for="emitter-gravity">Emitter Gravity: <span id="emitter-gravity-val">0.8</span></label>
-                <input type="range" id="emitter-gravity" min="0" max="3.0" step="0.1" value="0.8">
-            </div>
-            <button id="clear-paint-btn"
-                style="width: 100%; margin-top: 5px; margin-bottom: 15px; border-color: #ffaa00; color: #ffaa00; background: rgba(255, 170, 0, 0.1);">🧹
-                Clear Canvas</button>
+                <div class="control-group">
+                    <label for="brush-type" class="wow-label">Active Brush: </label>
+                    <select id="brush-type">
+                        <option value="off">Off (Standard Interaction)</option>
+                        <option value="gravity">Gravity (Stacking)</option>
+                        <option value="repulsor">Repulsor (Wall)</option>
+                        <option value="vortex">Vortex (Orbit)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="emitter-gravity">Emitter Gravity: <span id="emitter-gravity-val">0.8</span></label>
+                    <input type="range" id="emitter-gravity" min="0" max="3.0" step="0.1" value="0.8">
+                </div>
+                <button id="clear-paint-btn"
+                    style="width: 100%; margin-top: 5px; margin-bottom: 15px; border-color: #ffaa00; color: #ffaa00; background: rgba(255, 170, 0, 0.1);">🧹
+                    Clear Canvas</button>
 
-            <button id="chaos-btn">🎲 Chaos Scene</button>
-            <button id="snap-btn">Wallpaper ME! (Press S)</button>
-            <button id="reset-btn">Reset Factory Settings</button>
+                <button id="chaos-btn">🎲 Chaos Scene</button>
+                <button id="snap-btn">Wallpaper ME! (Press S)</button>
+                <button id="reset-btn">Reset Factory Settings</button>
+            </div>
         </div>
-    </div>
 
-    <script>
-        const app = new PIXI.Application({
-            resizeTo: window,
-            backgroundColor: 0x020205,
-            antialias: true,
-            resolution: window.devicePixelRatio || 1,
-            autoDensity: true,
-            preserveDrawingBuffer: true,
-            clearBeforeRender: false
-        });
-        document.body.appendChild(app.view);
+        <script>
+            const app = new PIXI.Application({
+                resizeTo: window,
+                backgroundColor: 0x020205,
+                antialias: true,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+                preserveDrawingBuffer: true,
+                clearBeforeRender: false
+            });
+            document.body.appendChild(app.view);
 
-        const fadeLayer = new PIXI.Graphics();
-        const webGraphics = new PIXI.Graphics();
-        const shockwaveGraphics = new PIXI.Graphics();
+            const fadeLayer = new PIXI.Graphics();
+            const webGraphics = new PIXI.Graphics();
+            const shockwaveGraphics = new PIXI.Graphics();
 
-        const glowContainer = new PIXI.Container();
-        const particleContainer = new PIXI.Container();
+            const glowContainer = new PIXI.Container();
+            const particleContainer = new PIXI.Container();
 
-        const mainStage = new PIXI.Container();
-        mainStage.addChild(fadeLayer);
-        mainStage.addChild(glowContainer);
-        mainStage.addChild(webGraphics);
-        mainStage.addChild(particleContainer);
-        mainStage.addChild(shockwaveGraphics);
-        app.stage.addChild(mainStage);
+            const mainStage = new PIXI.Container();
+            mainStage.addChild(fadeLayer);
+            mainStage.addChild(glowContainer);
+            mainStage.addChild(webGraphics);
+            mainStage.addChild(particleContainer);
+            mainStage.addChild(shockwaveGraphics);
+            app.stage.addChild(mainStage);
 
-        const diamondBlur = new PIXI.BlurFilter();
-        diamondBlur.blur = 5;
-        diamondBlur.quality = 2;
-        diamondBlur.autoFit = true;
+            const diamondBlur = new PIXI.BlurFilter();
+            diamondBlur.blur = 5;
+            diamondBlur.quality = 2;
+            diamondBlur.autoFit = true;
 
-        const saturationMatrix = new PIXI.ColorMatrixFilter();
-        saturationMatrix.saturate(1.2, false);
+            const saturationMatrix = new PIXI.ColorMatrixFilter();
+            saturationMatrix.saturate(1.2, false);
 
-        glowContainer.filters = [diamondBlur, saturationMatrix];
-        glowContainer.alpha = 0.5;
-
-        const texGraphics = new PIXI.Graphics();
-        texGraphics.beginFill(0xFFFFFF);
-        texGraphics.drawPolygon([-5, 0, 0, -8, 5, 0, 0, 8]);
-        texGraphics.endFill();
-        const diamondTexture = app.renderer.generateTexture(texGraphics);
-
-        const glowTexGraphics = new PIXI.Graphics();
-        glowTexGraphics.beginFill(0xFFFFFF);
-        glowTexGraphics.drawCircle(0, 0, 6);
-        glowTexGraphics.endFill();
-        const glowTexture = app.renderer.generateTexture(glowTexGraphics);
-
-        const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
-        const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'paint-toggle'];
-        const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
-
-        let settings = {
-            engineTimeScale: 1.0, isHolding: false,
-            density: 300,
-            size: 5.0,
-            'max-neighbors': 3,
-            'density-threshold': 40,
-            distance: 140,
-            gravity: 0.2,
-            repel: 1.8,
-            wrap: false,
-            well: false,
-            vortex: false,
-            flow: false,
-            bullet: true,
-            'light-mode': false,
-            'bg-hue': 0,
-            'diamond-bloom': 12,
-            'glow-luminance': 0.03,
-            'pulse-speed': 0,
-            symmetry: 1,
-            'emitter-gravity': 0.8,
-            additive: true,
-            parallax: false,
-            chromatic: false,
-            virus: false,
-            kinetic: false,
-            trail: false,
-            fill: true,
-            color: true,
-            shockwave: false,
-            flock: false,
-            fluid: false,
-            fire: false,
-            rain: false,
-            audio: false,
-            paint: false,
-            'audio-sensitivity': 1.0,
-            shatterRadius: 600,
-            shatterForce: 45,
-            colors: {
-                core: 0x00ffff,
-                glow: 0x0088ff,
-                line: 0x4488ff,
-                fill: 0x224488
-            }
-        };
-
-        const panel = document.getElementById('ui-panel');
-        document.getElementById('ui-header').addEventListener('click', () => panel.classList.toggle('minimized'));
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'm') panel.classList.toggle('minimized');
-            else if (e.key.toLowerCase() === 's' && !e.repeat) document.getElementById('snap-btn').click();
-        });
-
-        function updateFilters() {
-            diamondBlur.blur = settings['diamond-bloom'];
-            glowContainer.alpha = settings['glow-luminance'];
             glowContainer.filters = [diamondBlur, saturationMatrix];
-        }
+            glowContainer.alpha = 0.5;
 
-        function hslToHex(h, s, l) {
-            l /= 100;
-            const a = s * Math.min(l, 1 - l) / 100;
-            const f = n => {
-                const k = (n + h / 30) % 12;
-                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-                return Math.round(255 * color);
+            const texGraphics = new PIXI.Graphics();
+            texGraphics.beginFill(0xFFFFFF);
+            texGraphics.drawPolygon([-5, 0, 0, -8, 5, 0, 0, 8]);
+            texGraphics.endFill();
+            const diamondTexture = app.renderer.generateTexture(texGraphics);
+
+            const glowTexGraphics = new PIXI.Graphics();
+            glowTexGraphics.beginFill(0xFFFFFF);
+            glowTexGraphics.drawCircle(0, 0, 6);
+            glowTexGraphics.endFill();
+            const glowTexture = app.renderer.generateTexture(glowTexGraphics);
+
+            const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity'];
+            const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'trail-toggle', 'shockwave-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'paint-toggle'];
+            const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill'];
+
+            let settings = {
+                engineTimeScale: 1.0, isHolding: false,
+                density: 300,
+                size: 5.0,
+                'max-neighbors': 3,
+                'density-threshold': 40,
+                distance: 140,
+                gravity: 0.2,
+                repel: 1.8,
+                wrap: false,
+                well: false,
+                vortex: false,
+                flow: false,
+                bullet: true,
+                'light-mode': false,
+                'bg-hue': 0,
+                'diamond-bloom': 12,
+                'glow-luminance': 0.03,
+                'pulse-speed': 0,
+                symmetry: 1,
+                'emitter-gravity': 0.8,
+                additive: true,
+                parallax: false,
+                chromatic: false,
+                virus: false,
+                kinetic: false,
+                trail: false,
+                fill: true,
+                color: true,
+                shockwave: false,
+                flock: false,
+                fluid: false,
+                fire: false,
+                rain: false,
+                audio: false,
+                brushType: 'gravity',
+                'audio-sensitivity': 1.0,
+                shatterRadius: 600,
+                shatterForce: 45,
+                colors: {
+                    core: 0x00ffff,
+                    glow: 0x0088ff,
+                    line: 0x4488ff,
+                    fill: 0x224488
+                }
             };
-            return (f(0) << 16) + (f(8) << 8) + f(4);
-        }
 
-        function hexStringToInt(hex) {
-            return parseInt(hex.replace(/^#/, ''), 16);
-        }
+            const panel = document.getElementById('ui-panel');
+            document.getElementById('ui-header').addEventListener('click', () => panel.classList.toggle('minimized'));
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 'm') panel.classList.toggle('minimized');
+                else if (e.key.toLowerCase() === 's' && !e.repeat) document.getElementById('snap-btn').click();
+            });
 
-        function intToHexString(intColor) {
-            let hex = intColor.toString(16).padStart(6, '0');
-            return '#' + hex;
-        }
-
-        let currentBgHex = 0x020205;
-
-        function updateBackgroundColor() {
-            let lightness = settings['light-mode'] ? 90 : 5;
-            let saturation = settings['light-mode'] ? 20 : 30;
-            currentBgHex = hslToHex(settings['bg-hue'], saturation, lightness);
-            app.renderer.background.color = currentBgHex;
-        }
-
-        function rebuildSymmetry() {
-            diamonds.forEach(d => d.rebuildSprites());
-        }
-
-        function updatePickerState() {
-            const container = document.getElementById('custom-colors');
-            if (settings.color) {
-                container.classList.add('disabled-picker');
-            } else {
-                container.classList.remove('disabled-picker');
+            function updateFilters() {
+                diamondBlur.blur = settings['diamond-bloom'];
+                glowContainer.alpha = settings['glow-luminance'];
+                glowContainer.filters = [diamondBlur, saturationMatrix];
             }
-        }
 
-        const chaosPresets = [
-            {
-                name: 'Neon Flockstorm',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 260,
-                    size: 4.0,
-                    'max-neighbors': 3,
-                    'density-threshold': 35,
-                    distance: 130,
-                    gravity: 0.15,
-                    repel: 1.3,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 220,
-                    'diamond-bloom': 18,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 3,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: false,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: true,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Liquid Cathedral',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 420,
-                    size: 5.5,
-                    'max-neighbors': 5,
-                    'density-threshold': 50,
-                    distance: 160,
-                    gravity: 0.12,
-                    repel: 1.2,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 195,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.06,
-                    'pulse-speed': 3,
-                    symmetry: 3,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: true,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: true,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Inferno Storm',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 480,
-                    size: 4.5,
-                    'max-neighbors': 3,
-                    'density-threshold': 45,
-                    distance: 130,
-                    gravity: 0.10,
-                    repel: 1.0,
-                    wrap: true,
-                    well: false,
-                    vortex: true,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 25,
-                    'diamond-bloom': 22,
-                    'glow-luminance': 0.07,
-                    'pulse-speed': 5,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: true,
-                    rain: false
-                }
-            },
-            {
-                name: 'Monsoon Lattice',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 360,
-                    size: 5.0,
-                    'max-neighbors': 5,
-                    'density-threshold': 40,
-                    distance: 170,
-                    gravity: 0.16,
-                    repel: 1.6,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 200,
-                    'diamond-bloom': 16,
-                    'glow-luminance': 0.03,
-                    'pulse-speed': 2,
-                    symmetry: 2,
-                    additive: false,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: false,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: true
-                }
-            },
-            {
-                name: 'Digital Plague',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 460,
-                    size: 4.5,
-                    'max-neighbors': 4,
-                    'density-threshold': 35,
-                    distance: 140,
-                    gravity: 0.15,
-                    repel: 1.4,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 330,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.06,
-                    'pulse-speed': 5,
-                    symmetry: 3,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: true,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Solar Bloom',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 340,
-                    size: 6.0,
-                    'max-neighbors': 4,
-                    'density-threshold': 45,
-                    distance: 180,
-                    gravity: 0.14,
-                    repel: 1.3,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 40,
-                    'diamond-bloom': 24,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 3,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: true,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: true,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Quantum Weave',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 210,
-                    size: 4.2,
-                    'max-neighbors': 3,
-                    'density-threshold': 45,
-                    distance: 140,
-                    gravity: 0.12,
-                    repel: 1.3,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 260,
-                    'diamond-bloom': 16,
-                    'glow-luminance': 0.04,
-                    'pulse-speed': 3,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: true,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Midnight Glass',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 320,
-                    size: 5.8,
-                    'max-neighbors': 3,
-                    'density-threshold': 40,
-                    distance: 160,
-                    gravity: 0.11,
-                    repel: 1.1,
-                    wrap: false,
-                    well: true,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 210,
-                    'diamond-bloom': 26,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 2,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Aurora Swarm',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 450,
-                    size: 4.8,
-                    'max-neighbors': 4,
-                    'density-threshold': 45,
-                    distance: 155,
-                    gravity: 0.17,
-                    repel: 1.4,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 140,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.06,
-                    'pulse-speed': 4,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: true,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Prism Engine',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 260,
-                    size: 5.0,
-                    'max-neighbors': 3,
-                    'density-threshold': 42,
-                    distance: 150,
-                    gravity: 0.13,
-                    repel: 1.2,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 300,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.04,
-                    'pulse-speed': 4,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: true,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Static Blizzard',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 360,
-                    size: 4.2,
-                    'max-neighbors': 6,
-                    'density-threshold': 55,
-                    distance: 200,
-                    gravity: 0.10,
-                    repel: 1.8,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 210,
-                    'diamond-bloom': 18,
-                    'glow-luminance': 0.04,
-                    'pulse-speed': 1,
-                    symmetry: 2,
-                    additive: false,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: false,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: true
-                }
-            },
-            {
-                name: 'Deep Space Echo',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 300,
-                    size: 6.2,
-                    'max-neighbors': 3,
-                    'density-threshold': 38,
-                    distance: 190,
-                    gravity: 0.09,
-                    repel: 1.0,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 260,
-                    'diamond-bloom': 28,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 2,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Cyber Monsoon',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 430,
-                    size: 4.6,
-                    'max-neighbors': 4,
-                    'density-threshold': 45,
-                    distance: 165,
-                    gravity: 0.17,
-                    repel: 1.5,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 190,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 4,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: true
-                }
-            },
-            {
-                name: 'Neon Basilica',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 260,
-                    size: 5.4,
-                    'max-neighbors': 3,
-                    'density-threshold': 45,
-                    distance: 145,
-                    gravity: 0.13,
-                    repel: 1.3,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 300,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 3,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Gravity Well',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 350,
-                    size: 5.8,
-                    'max-neighbors': 3,
-                    'density-threshold': 40,
-                    distance: 150,
-                    gravity: 0.20,
-                    repel: 1.2,
-                    wrap: false,
-                    well: true,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 230,
-                    'diamond-bloom': 24,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 4,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Blooming Rift',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 370,
-                    size: 5.2,
-                    'max-neighbors': 4,
-                    'density-threshold': 44,
-                    distance: 185,
-                    gravity: 0.14,
-                    repel: 1.4,
-                    wrap: false,
-                    well: false,
-                    vortex: true,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 10,
-                    'diamond-bloom': 26,
-                    'glow-luminance': 0.06,
-                    'pulse-speed': 5,
-                    symmetry: 3,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: true,
-                    rain: false
-                }
-            },
-            {
-                name: 'Glitch Carousel',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 390,
-                    size: 4.4,
-                    'max-neighbors': 5,
-                    'density-threshold': 50,
-                    distance: 170,
-                    gravity: 0.16,
-                    repel: 1.6,
-                    wrap: true,
-                    well: false,
-                    vortex: true,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 280,
-                    'diamond-bloom': 20,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 6,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: true,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Frost Circuit',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 340,
-                    size: 5.0,
-                    'max-neighbors': 4,
-                    'density-threshold': 48,
-                    distance: 190,
-                    gravity: 0.11,
-                    repel: 1.5,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 190,
-                    'diamond-bloom': 18,
-                    'glow-luminance': 0.04,
-                    'pulse-speed': 2,
-                    symmetry: 3,
-                    additive: false,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: false,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: true
-                }
-            },
-            {
-                name: 'Plasma Rain',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 410,
-                    size: 4.7,
-                    'max-neighbors': 4,
-                    'density-threshold': 42,
-                    distance: 160,
-                    gravity: 0.18,
-                    repel: 1.4,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 320,
-                    'diamond-bloom': 22,
-                    'glow-luminance': 0.06,
-                    'pulse-speed': 4,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: true,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: true
-                }
-            },
-            {
-                name: 'Liminal Shore',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 330,
-                    size: 5.6,
-                    'max-neighbors': 3,
-                    'density-threshold': 40,
-                    distance: 185,
-                    gravity: 0.12,
-                    repel: 1.2,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': true,
-                    'bg-hue': 50,
-                    'diamond-bloom': 24,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 3,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: true,
-                    fill: true,
-                    color: false,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Crystal Shards',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 180,
-                    size: 2.0,
-                    'max-neighbors': 4,
-                    'density-threshold': 25,
-                    distance: 120,
-                    gravity: 0.12,
-                    repel: 1.5,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 260,
-                    'diamond-bloom': 8,
-                    'glow-luminance': 0.05,
-                    'pulse-speed': 1,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: true,
-                    trail: false,
-                    fill: true,
-                    color: true,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Firefly Night',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 120,
-                    size: 6.0,
-                    'max-neighbors': 0,
-                    'density-threshold': 20,
-                    distance: 0,
-                    gravity: 0.05,
-                    repel: 0.5,
-                    wrap: true,
-                    well: false,
-                    vortex: false,
-                    flow: true,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 120,
-                    'diamond-bloom': 15,
-                    'glow-luminance': 0.08,
-                    'pulse-speed': 2,
-                    symmetry: 1,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: true,
-                    fill: false,
-                    color: false,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false,
-                    colors: { core: 0xffffaa, glow: 0x88ff00, line: 0, fill: 0 }
-                }
-            },
-            {
-                name: 'Retro Arcade',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 200,
-                    size: 4.0,
-                    'max-neighbors': 2,
-                    'density-threshold': 35,
-                    distance: 140,
-                    gravity: 0.15,
-                    repel: 1.2,
-                    wrap: false,
-                    well: false,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 280,
-                    'diamond-bloom': 0,
-                    'glow-luminance': 0.0,
-                    'pulse-speed': 0,
-                    symmetry: 1,
-                    additive: false,
-                    parallax: false,
-                    chromatic: true,
-                    virus: false,
-                    kinetic: false,
-                    trail: false,
-                    fill: true,
-                    color: true,
-                    shockwave: true,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
-                }
-            },
-            {
-                name: 'Soft Orbs',
-                config: {
-                    engineTimeScale: 1.0,
-                    density: 90,
-                    size: 9.0,
-                    'max-neighbors': 0,
-                    'density-threshold': 20,
-                    distance: 0,
-                    gravity: 0.08,
-                    repel: 1.0,
-                    wrap: false,
-                    well: true,
-                    vortex: false,
-                    flow: false,
-                    bullet: true,
-                    'light-mode': false,
-                    'bg-hue': 200,
-                    'diamond-bloom': 35,
-                    'glow-luminance': 0.1,
-                    'pulse-speed': 4,
-                    symmetry: 2,
-                    additive: true,
-                    parallax: false,
-                    chromatic: false,
-                    virus: false,
-                    kinetic: false,
-                    trail: true,
-                    fill: false,
-                    color: true,
-                    shockwave: false,
-                    flock: false,
-                    fluid: false,
-                    fire: false,
-                    rain: false
+            function hslToHex(h, s, l) {
+                l /= 100;
+                const a = s * Math.min(l, 1 - l) / 100;
+                const f = n => {
+                    const k = (n + h / 30) % 12;
+                    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                    return Math.round(255 * color);
+                };
+                return (f(0) << 16) + (f(8) << 8) + f(4);
+            }
+
+            function hexStringToInt(hex) {
+                return parseInt(hex.replace(/^#/, ''), 16);
+            }
+
+            function intToHexString(intColor) {
+                let hex = intColor.toString(16).padStart(6, '0');
+                return '#' + hex;
+            }
+
+            let currentBgHex = 0x020205;
+
+            function updateBackgroundColor() {
+                let lightness = settings['light-mode'] ? 90 : 5;
+                let saturation = settings['light-mode'] ? 20 : 30;
+                currentBgHex = hslToHex(settings['bg-hue'], saturation, lightness);
+                app.renderer.background.color = currentBgHex;
+            }
+
+            function rebuildSymmetry() {
+                diamonds.forEach(d => d.rebuildSprites());
+            }
+
+            function updatePickerState() {
+                const container = document.getElementById('custom-colors');
+                if (settings.color) {
+                    container.classList.add('disabled-picker');
+                } else {
+                    container.classList.remove('disabled-picker');
                 }
             }
-        ];
 
-        function jitterSliderValue(base, el) {
-            let value = base;
-            if (typeof base === 'number') {
-                const min = parseFloat(el.min);
-                const max = parseFloat(el.max);
-                const span = max - min;
-                const jitterAmount = span * 0.05;
-                value = base + (Math.random() - 0.5) * 2 * jitterAmount;
-                value = Math.max(min, Math.min(max, value));
-                const step = parseFloat(el.step || '1');
-                if (!isNaN(step) && step > 0) {
-                    value = Math.round(value / step) * step;
+            const chaosPresets = [
+                {
+                    name: 'Neon Flockstorm',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 260,
+                        size: 4.0,
+                        'max-neighbors': 3,
+                        'density-threshold': 35,
+                        distance: 130,
+                        gravity: 0.15,
+                        repel: 1.3,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 220,
+                        'diamond-bloom': 18,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 3,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: false,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: true,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Liquid Cathedral',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 420,
+                        size: 5.5,
+                        'max-neighbors': 5,
+                        'density-threshold': 50,
+                        distance: 160,
+                        gravity: 0.12,
+                        repel: 1.2,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 195,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.06,
+                        'pulse-speed': 3,
+                        symmetry: 3,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: true,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: true,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Inferno Storm',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 480,
+                        size: 4.5,
+                        'max-neighbors': 3,
+                        'density-threshold': 45,
+                        distance: 130,
+                        gravity: 0.10,
+                        repel: 1.0,
+                        wrap: true,
+                        well: false,
+                        vortex: true,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 25,
+                        'diamond-bloom': 22,
+                        'glow-luminance': 0.07,
+                        'pulse-speed': 5,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: true,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Monsoon Lattice',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 360,
+                        size: 5.0,
+                        'max-neighbors': 5,
+                        'density-threshold': 40,
+                        distance: 170,
+                        gravity: 0.16,
+                        repel: 1.6,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 200,
+                        'diamond-bloom': 16,
+                        'glow-luminance': 0.03,
+                        'pulse-speed': 2,
+                        symmetry: 2,
+                        additive: false,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: false,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: true
+                    }
+                },
+                {
+                    name: 'Digital Plague',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 460,
+                        size: 4.5,
+                        'max-neighbors': 4,
+                        'density-threshold': 35,
+                        distance: 140,
+                        gravity: 0.15,
+                        repel: 1.4,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 330,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.06,
+                        'pulse-speed': 5,
+                        symmetry: 3,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: true,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Solar Bloom',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 340,
+                        size: 6.0,
+                        'max-neighbors': 4,
+                        'density-threshold': 45,
+                        distance: 180,
+                        gravity: 0.14,
+                        repel: 1.3,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 40,
+                        'diamond-bloom': 24,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 3,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: true,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: true,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Quantum Weave',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 210,
+                        size: 4.2,
+                        'max-neighbors': 3,
+                        'density-threshold': 45,
+                        distance: 140,
+                        gravity: 0.12,
+                        repel: 1.3,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 260,
+                        'diamond-bloom': 16,
+                        'glow-luminance': 0.04,
+                        'pulse-speed': 3,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: true,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Midnight Glass',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 320,
+                        size: 5.8,
+                        'max-neighbors': 3,
+                        'density-threshold': 40,
+                        distance: 160,
+                        gravity: 0.11,
+                        repel: 1.1,
+                        wrap: false,
+                        well: true,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 210,
+                        'diamond-bloom': 26,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 2,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Aurora Swarm',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 450,
+                        size: 4.8,
+                        'max-neighbors': 4,
+                        'density-threshold': 45,
+                        distance: 155,
+                        gravity: 0.17,
+                        repel: 1.4,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 140,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.06,
+                        'pulse-speed': 4,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: true,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Prism Engine',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 260,
+                        size: 5.0,
+                        'max-neighbors': 3,
+                        'density-threshold': 42,
+                        distance: 150,
+                        gravity: 0.13,
+                        repel: 1.2,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 300,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.04,
+                        'pulse-speed': 4,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: true,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Static Blizzard',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 360,
+                        size: 4.2,
+                        'max-neighbors': 6,
+                        'density-threshold': 55,
+                        distance: 200,
+                        gravity: 0.10,
+                        repel: 1.8,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 210,
+                        'diamond-bloom': 18,
+                        'glow-luminance': 0.04,
+                        'pulse-speed': 1,
+                        symmetry: 2,
+                        additive: false,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: false,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: true
+                    }
+                },
+                {
+                    name: 'Deep Space Echo',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 300,
+                        size: 6.2,
+                        'max-neighbors': 3,
+                        'density-threshold': 38,
+                        distance: 190,
+                        gravity: 0.09,
+                        repel: 1.0,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 260,
+                        'diamond-bloom': 28,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 2,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Cyber Monsoon',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 430,
+                        size: 4.6,
+                        'max-neighbors': 4,
+                        'density-threshold': 45,
+                        distance: 165,
+                        gravity: 0.17,
+                        repel: 1.5,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 190,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 4,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: true
+                    }
+                },
+                {
+                    name: 'Neon Basilica',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 260,
+                        size: 5.4,
+                        'max-neighbors': 3,
+                        'density-threshold': 45,
+                        distance: 145,
+                        gravity: 0.13,
+                        repel: 1.3,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 300,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 3,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Gravity Well',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 350,
+                        size: 5.8,
+                        'max-neighbors': 3,
+                        'density-threshold': 40,
+                        distance: 150,
+                        gravity: 0.20,
+                        repel: 1.2,
+                        wrap: false,
+                        well: true,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 230,
+                        'diamond-bloom': 24,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 4,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Blooming Rift',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 370,
+                        size: 5.2,
+                        'max-neighbors': 4,
+                        'density-threshold': 44,
+                        distance: 185,
+                        gravity: 0.14,
+                        repel: 1.4,
+                        wrap: false,
+                        well: false,
+                        vortex: true,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 10,
+                        'diamond-bloom': 26,
+                        'glow-luminance': 0.06,
+                        'pulse-speed': 5,
+                        symmetry: 3,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: true,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Glitch Carousel',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 390,
+                        size: 4.4,
+                        'max-neighbors': 5,
+                        'density-threshold': 50,
+                        distance: 170,
+                        gravity: 0.16,
+                        repel: 1.6,
+                        wrap: true,
+                        well: false,
+                        vortex: true,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 280,
+                        'diamond-bloom': 20,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 6,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: true,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Frost Circuit',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 340,
+                        size: 5.0,
+                        'max-neighbors': 4,
+                        'density-threshold': 48,
+                        distance: 190,
+                        gravity: 0.11,
+                        repel: 1.5,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 190,
+                        'diamond-bloom': 18,
+                        'glow-luminance': 0.04,
+                        'pulse-speed': 2,
+                        symmetry: 3,
+                        additive: false,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: false,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: true
+                    }
+                },
+                {
+                    name: 'Plasma Rain',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 410,
+                        size: 4.7,
+                        'max-neighbors': 4,
+                        'density-threshold': 42,
+                        distance: 160,
+                        gravity: 0.18,
+                        repel: 1.4,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 320,
+                        'diamond-bloom': 22,
+                        'glow-luminance': 0.06,
+                        'pulse-speed': 4,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: true,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: true
+                    }
+                },
+                {
+                    name: 'Liminal Shore',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 330,
+                        size: 5.6,
+                        'max-neighbors': 3,
+                        'density-threshold': 40,
+                        distance: 185,
+                        gravity: 0.12,
+                        repel: 1.2,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': true,
+                        'bg-hue': 50,
+                        'diamond-bloom': 24,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 3,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: true,
+                        fill: true,
+                        color: false,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Crystal Shards',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 180,
+                        size: 2.0,
+                        'max-neighbors': 4,
+                        'density-threshold': 25,
+                        distance: 120,
+                        gravity: 0.12,
+                        repel: 1.5,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 260,
+                        'diamond-bloom': 8,
+                        'glow-luminance': 0.05,
+                        'pulse-speed': 1,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: true,
+                        trail: false,
+                        fill: true,
+                        color: true,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Firefly Night',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 120,
+                        size: 6.0,
+                        'max-neighbors': 0,
+                        'density-threshold': 20,
+                        distance: 0,
+                        gravity: 0.05,
+                        repel: 0.5,
+                        wrap: true,
+                        well: false,
+                        vortex: false,
+                        flow: true,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 120,
+                        'diamond-bloom': 15,
+                        'glow-luminance': 0.08,
+                        'pulse-speed': 2,
+                        symmetry: 1,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: true,
+                        fill: false,
+                        color: false,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false,
+                        colors: { core: 0xffffaa, glow: 0x88ff00, line: 0, fill: 0 }
+                    }
+                },
+                {
+                    name: 'Retro Arcade',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 200,
+                        size: 4.0,
+                        'max-neighbors': 2,
+                        'density-threshold': 35,
+                        distance: 140,
+                        gravity: 0.15,
+                        repel: 1.2,
+                        wrap: false,
+                        well: false,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 280,
+                        'diamond-bloom': 0,
+                        'glow-luminance': 0.0,
+                        'pulse-speed': 0,
+                        symmetry: 1,
+                        additive: false,
+                        parallax: false,
+                        chromatic: true,
+                        virus: false,
+                        kinetic: false,
+                        trail: false,
+                        fill: true,
+                        color: true,
+                        shockwave: true,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                },
+                {
+                    name: 'Soft Orbs',
+                    config: {
+                        engineTimeScale: 1.0,
+                        density: 90,
+                        size: 9.0,
+                        'max-neighbors': 0,
+                        'density-threshold': 20,
+                        distance: 0,
+                        gravity: 0.08,
+                        repel: 1.0,
+                        wrap: false,
+                        well: true,
+                        vortex: false,
+                        flow: false,
+                        bullet: true,
+                        'light-mode': false,
+                        'bg-hue': 200,
+                        'diamond-bloom': 35,
+                        'glow-luminance': 0.1,
+                        'pulse-speed': 4,
+                        symmetry: 2,
+                        additive: true,
+                        parallax: false,
+                        chromatic: false,
+                        virus: false,
+                        kinetic: false,
+                        trail: true,
+                        fill: false,
+                        color: true,
+                        shockwave: false,
+                        flock: false,
+                        fluid: false,
+                        fire: false,
+                        rain: false
+                    }
+                }
+            ];
+
+            function jitterSliderValue(base, el) {
+                let value = base;
+                if (typeof base === 'number') {
+                    const min = parseFloat(el.min);
+                    const max = parseFloat(el.max);
+                    const span = max - min;
+                    const jitterAmount = span * 0.05;
+                    value = base + (Math.random() - 0.5) * 2 * jitterAmount;
+                    value = Math.max(min, Math.min(max, value));
+                    const step = parseFloat(el.step || '1');
+                    if (!isNaN(step) && step > 0) {
+                        value = Math.round(value / step) * step;
+                    }
+                }
+                return value;
+            }
+
+            function applyChaosPreset(preset) {
+                const config = preset.config || {};
+
+                Object.keys(config).forEach(key => {
+                    const sliderEl = document.getElementById(key);
+                    const toggleEl = document.getElementById(key + '-toggle');
+
+                    if (sliderEl && sliderEl.type === 'range') {
+                        let value = jitterSliderValue(config[key], sliderEl);
+
+                        // Global safety caps for Chaos scenes
+                        if (key === 'density') value = Math.min(value, 260);
+                        if (key === 'distance') value = Math.min(value, 170);
+                        if (key === 'max-neighbors') value = Math.min(value, 3);
+                        if (key === 'symmetry') value = Math.min(value, 2);
+                        if (key === 'pulse-speed') value = Math.min(value, 4);
+
+                        sliderEl.value = value;
+                        sliderEl.dispatchEvent(new Event('input'));
+                    } else if (toggleEl && toggleEl.type === 'checkbox') {
+                        toggleEl.checked = !!config[key];
+                        toggleEl.dispatchEvent(new Event('change'));
+                    } else if (key in settings) {
+                        settings[key] = config[key];
+                    }
+                });
+
+                if (config.colors) {
+                    ['core', 'glow', 'line', 'fill'].forEach(channel => {
+                        if (typeof config.colors[channel] === 'number') {
+                            settings.colors[channel] = config.colors[channel];
+                            const picker = document.getElementById('col-' + channel);
+                            if (picker) picker.value = intToHexString(config.colors[channel]);
+                        }
+                    });
+                }
+
+                const chaosBtn = document.getElementById('chaos-btn');
+                if (chaosBtn) {
+                    chaosBtn.textContent = '🎲 ' + preset.name;
                 }
             }
-            return value;
-        }
 
-        function applyChaosPreset(preset) {
-            const config = preset.config || {};
+            function randomizeChaosScene() {
+                if (!chaosPresets.length) return;
+                const preset = chaosPresets[Math.floor(Math.random() * chaosPresets.length)];
+                applyChaosPreset(preset);
+            }
 
-            Object.keys(config).forEach(key => {
-                const sliderEl = document.getElementById(key);
-                const toggleEl = document.getElementById(key + '-toggle');
+            sliders.forEach(s => {
+                const el = document.getElementById(s);
+                el.addEventListener('input', e => {
+                    settings[s] = parseFloat(e.target.value);
+                    const disp = document.getElementById(s + '-val');
 
-                if (sliderEl && sliderEl.type === 'range') {
-                    let value = jitterSliderValue(config[key], sliderEl);
+                    if (s === 'symmetry') {
+                        let val = parseInt(e.target.value);
+                        let displayVal = val === 1 ? '1' : (val === 2 ? '4' : '8');
+                        if (disp) disp.textContent = displayVal;
+                        rebuildSymmetry();
+                    } else {
+                        if (disp) disp.textContent = e.target.value;
+                    }
 
-                    // Global safety caps for Chaos scenes
-                    if (key === 'density') value = Math.min(value, 260);
-                    if (key === 'distance') value = Math.min(value, 170);
-                    if (key === 'max-neighbors') value = Math.min(value, 3);
-                    if (key === 'symmetry') value = Math.min(value, 2);
-                    if (key === 'pulse-speed') value = Math.min(value, 4);
+                    if (s === 'density') adjustSwarmDensity();
+                    if (s === 'diamond-bloom' || s === 'glow-luminance') updateFilters();
+                    if (s === 'bg-hue') updateBackgroundColor();
+                });
+            });
 
-                    sliderEl.value = value;
-                    sliderEl.dispatchEvent(new Event('input'));
-                } else if (toggleEl && toggleEl.type === 'checkbox') {
-                    toggleEl.checked = !!config[key];
-                    toggleEl.dispatchEvent(new Event('change'));
-                } else if (key in settings) {
-                    settings[key] = config[key];
+            colorPickers.forEach(id => {
+                const el = document.getElementById(id);
+                el.addEventListener('input', e => {
+                    let key = id.replace('col-', '');
+                    settings.colors[key] = hexStringToInt(e.target.value);
+                });
+            });
+
+            toggles.forEach(t => {
+                const el = document.getElementById(t);
+                el.addEventListener('change', e => {
+                    const key = t.replace('-toggle', '');
+                    settings[key] = e.target.checked;
+
+                    if (key === 'color') updatePickerState();
+
+                    if (key === 'flock' && settings.flock) { settings.fluid = false; settings.fire = false; settings.rain = false; }
+                    if (key === 'fluid' && settings.fluid) { settings.flock = false; settings.fire = false; settings.rain = false; }
+                    if (key === 'fire' && settings.fire) {
+                        settings.flock = false; settings.fluid = false; settings.rain = false;
+                        settings.additive = true; document.getElementById('additive-toggle').checked = true;
+                    }
+                    if (key === 'rain' && settings.rain) {
+                        settings.flock = false; settings.fluid = false; settings.fire = false;
+                    }
+
+                    document.getElementById('flock-toggle').checked = settings.flock;
+                    document.getElementById('fluid-toggle').checked = settings.fluid;
+                    document.getElementById('fire-toggle').checked = settings.fire;
+                    document.getElementById('rain-toggle').checked = settings.rain;
+
+                    if (settings.fire || settings.flock) {
+                        settings.wrap = true; document.getElementById('wrap-toggle').checked = true;
+                    } else if (settings.fluid || settings.rain) {
+                        settings.wrap = false; document.getElementById('wrap-toggle').checked = false;
+                    }
+
+                    if (key === 'virus') handleVirusToggle(e.target.checked);
+                    if (key === 'light-mode') updateBackgroundColor();
+                });
+            });
+
+            document.getElementById('chaos-btn').addEventListener('click', () => {
+                randomizeChaosScene();
+            });
+
+            document.getElementById('brush-type').addEventListener('change', (e) => {
+                settings.brushType = e.target.value;
+            });
+
+            document.getElementById('random-colors-btn').addEventListener('click', () => {
+                const getRandomColor = () => Math.floor(Math.random() * 16777215);
+
+                // Uncheck Dynamic Rainbow if active
+                const rainbowToggle = document.getElementById('color-toggle');
+                if (rainbowToggle.checked) {
+                    rainbowToggle.checked = false;
+                    settings.color = false;
+                    updatePickerState();
+                }
+
+                ['core', 'glow', 'line', 'fill'].forEach(key => {
+                    const color = getRandomColor();
+                    settings.colors[key] = color;
+                    const picker = document.getElementById('col-' + key);
+                    if (picker) picker.value = intToHexString(color);
+                });
+            });
+
+            document.getElementById('snap-btn').addEventListener('click', () => {
+                const canvas = app.view;
+                if (!canvas || !canvas.toBlob) return;
+
+                canvas.toBlob(blob => {
+                    if (!blob) return;
+                    const a = document.createElement('a');
+                    document.body.append(a);
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `freakin-fractals-screenshot-${timestamp}.png`;
+                    a.href = URL.createObjectURL(blob);
+                    a.click();
+                    a.remove();
+                });
+            });
+
+            document.getElementById('reset-btn').addEventListener('click', () => location.reload());
+
+            // --- Audio Reactivity Setup ---
+            // --- Audio Reactivity Setup ---
+            let micAudioCtx, micAnalyser, micStreamSource, audioDataArray;
+            let isAudioInitialized = false;
+
+            document.getElementById('mic-btn').addEventListener('click', async () => {
+                if (isAudioInitialized) return;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    micAnalyser = micAudioCtx.createAnalyser();
+                    micAnalyser.fftSize = 256; // Gives us 128 frequency bins
+                    micStreamSource = micAudioCtx.createMediaStreamSource(stream);
+                    micStreamSource.connect(micAnalyser);
+
+                    audioDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
+                    isAudioInitialized = true;
+
+                    // Update UI Controls
+                    document.getElementById('mic-btn').textContent = '🎤 Mic Active';
+                    document.getElementById('mic-btn').style.background = 'rgba(0, 255, 136, 0.3)';
+                    const audioToggle = document.getElementById('audio-toggle');
+                    audioToggle.disabled = false;
+                    audioToggle.checked = true;
+                    settings.audio = true;
+                    document.getElementById('audio-sensitivity').disabled = false;
+
+                } catch (err) {
+                    console.error('Error accessing microphone:', err);
+                    document.getElementById('mic-btn').textContent = '❌ Mic Denied';
+                    document.getElementById('mic-btn').style.borderColor = '#ff3333';
+                    document.getElementById('mic-btn').style.color = '#ff3333';
                 }
             });
 
-            if (config.colors) {
-                ['core', 'glow', 'line', 'fill'].forEach(channel => {
-                    if (typeof config.colors[channel] === 'number') {
-                        settings.colors[channel] = config.colors[channel];
-                        const picker = document.getElementById('col-' + channel);
-                        if (picker) picker.value = intToHexString(config.colors[channel]);
+            let diamonds = [], shockwaves = [], paintedNodes = [], mouse = { x: null, y: null };
+            let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
+            let gyro = { x: 0, y: 0 };
+            let screenShake = 0;
+            let pulsePhase = 0;
+            let smoothedBass = 0;
+            let smoothedAvg = 0;
+
+            function handleOrientation(e) {
+                gyro.x = e.gamma ? Math.max(-40, Math.min(40, e.gamma)) * 1.5 : 0;
+                gyro.y = e.beta ? Math.max(-40, Math.min(40, e.beta)) * 1.5 : 0;
+            }
+
+            function playShatterSound(isImplosion = false) {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const time = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const oscGain = audioCtx.createGain();
+                osc.type = settings.virus ? 'sawtooth' : 'sine';
+
+                // Water drop: fast upward frequency sweep, reversed for implosion
+                let dur = settings.bullet ? 0.3 : 0.15;
+                let startBase = settings.bullet ? 240 : 320;
+                let endBase = settings.bullet ? 550 : 750;
+
+                osc.frequency.setValueAtTime(isImplosion ? endBase : startBase, time);
+                osc.frequency.exponentialRampToValueAtTime(isImplosion ? startBase : endBase, time + 0.05);
+
+                // Fast percussive attack and decay
+                oscGain.gain.setValueAtTime(0, time);
+                oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.2 : 0.4, time + 0.01);
+                oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+
+                osc.connect(oscGain); oscGain.connect(audioCtx.destination);
+                osc.start(time); osc.stop(time + dur);
+            }
+
+            function triggerRainDrop(x, y) {
+                diamonds.forEach(d => {
+                    let dx = d.x - x;
+                    let dy = d.y - y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        let force = (150 - dist) / 150;
+                        d.vx += (dx / dist) * force * 80.0;
+                        d.vy += (dy / dist) * force * 80.0;
                     }
                 });
             }
 
-            const chaosBtn = document.getElementById('chaos-btn');
-            if (chaosBtn) {
-                chaosBtn.textContent = '🎲 ' + preset.name;
-            }
-        }
-
-        function randomizeChaosScene() {
-            if (!chaosPresets.length) return;
-            const preset = chaosPresets[Math.floor(Math.random() * chaosPresets.length)];
-            applyChaosPreset(preset);
-        }
-
-        sliders.forEach(s => {
-            const el = document.getElementById(s);
-            el.addEventListener('input', e => {
-                settings[s] = parseFloat(e.target.value);
-                const disp = document.getElementById(s + '-val');
-
-                if (s === 'symmetry') {
-                    let val = parseInt(e.target.value);
-                    let displayVal = val === 1 ? '1' : (val === 2 ? '4' : '8');
-                    if (disp) disp.textContent = displayVal;
-                    rebuildSymmetry();
-                } else {
-                    if (disp) disp.textContent = e.target.value;
+            function handlePointer(e) {
+                const rect = app.view.getBoundingClientRect();
+                let clientX = e.clientX, clientY = e.clientY;
+                if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+                if (clientX !== undefined && clientY !== undefined) {
+                    mouse.x = clientX - rect.left; mouse.y = clientY - rect.top;
                 }
-
-                if (s === 'density') adjustSwarmDensity();
-                if (s === 'diamond-bloom' || s === 'glow-luminance') updateFilters();
-                if (s === 'bg-hue') updateBackgroundColor();
-            });
-        });
-
-        colorPickers.forEach(id => {
-            const el = document.getElementById(id);
-            el.addEventListener('input', e => {
-                let key = id.replace('col-', '');
-                settings.colors[key] = hexStringToInt(e.target.value);
-            });
-        });
-
-        toggles.forEach(t => {
-            const el = document.getElementById(t);
-            el.addEventListener('change', e => {
-                const key = t.replace('-toggle', '');
-                settings[key] = e.target.checked;
-
-                if (key === 'color') updatePickerState();
-
-                if (key === 'flock' && settings.flock) { settings.fluid = false; settings.fire = false; settings.rain = false; }
-                if (key === 'fluid' && settings.fluid) { settings.flock = false; settings.fire = false; settings.rain = false; }
-                if (key === 'fire' && settings.fire) {
-                    settings.flock = false; settings.fluid = false; settings.rain = false;
-                    settings.additive = true; document.getElementById('additive-toggle').checked = true;
-                }
-                if (key === 'rain' && settings.rain) {
-                    settings.flock = false; settings.fluid = false; settings.fire = false;
-                }
-
-                document.getElementById('flock-toggle').checked = settings.flock;
-                document.getElementById('fluid-toggle').checked = settings.fluid;
-                document.getElementById('fire-toggle').checked = settings.fire;
-                document.getElementById('rain-toggle').checked = settings.rain;
-
-                if (settings.fire || settings.flock) {
-                    settings.wrap = true; document.getElementById('wrap-toggle').checked = true;
-                } else if (settings.fluid || settings.rain) {
-                    settings.wrap = false; document.getElementById('wrap-toggle').checked = false;
-                }
-
-                if (key === 'virus') handleVirusToggle(e.target.checked);
-                if (key === 'light-mode') updateBackgroundColor();
-            });
-        });
-
-        document.getElementById('chaos-btn').addEventListener('click', () => {
-            randomizeChaosScene();
-        });
-
-        document.getElementById('random-colors-btn').addEventListener('click', () => {
-            const getRandomColor = () => Math.floor(Math.random() * 16777215);
-
-            // Uncheck Dynamic Rainbow if active
-            const rainbowToggle = document.getElementById('color-toggle');
-            if (rainbowToggle.checked) {
-                rainbowToggle.checked = false;
-                settings.color = false;
-                updatePickerState();
             }
 
-            ['core', 'glow', 'line', 'fill'].forEach(key => {
-                const color = getRandomColor();
-                settings.colors[key] = color;
-                const picker = document.getElementById('col-' + key);
-                if (picker) picker.value = intToHexString(color);
+            document.getElementById('clear-paint-btn').addEventListener('click', () => {
+                paintedNodes = [];
             });
-        });
 
-        document.getElementById('snap-btn').addEventListener('click', () => {
-            const canvas = app.view;
-            if (!canvas || !canvas.toBlob) return;
+            const onPointerDown = (e) => {
+                if (e.target.closest('#ui-panel')) return;
 
-            canvas.toBlob(blob => {
-                if (!blob) return;
-                const a = document.createElement('a');
-                document.body.append(a);
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                a.download = `freakin-fractals-screenshot-${timestamp}.png`;
-                a.href = URL.createObjectURL(blob);
-                a.click();
-                a.remove();
-            });
-        });
-
-        document.getElementById('reset-btn').addEventListener('click', () => location.reload());
-
-        // --- Audio Reactivity Setup ---
-        // --- Audio Reactivity Setup ---
-        let micAudioCtx, micAnalyser, micStreamSource, audioDataArray;
-        let isAudioInitialized = false;
-
-        document.getElementById('mic-btn').addEventListener('click', async () => {
-            if (isAudioInitialized) return;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                micAnalyser = micAudioCtx.createAnalyser();
-                micAnalyser.fftSize = 256; // Gives us 128 frequency bins
-                micStreamSource = micAudioCtx.createMediaStreamSource(stream);
-                micStreamSource.connect(micAnalyser);
-
-                audioDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
-                isAudioInitialized = true;
-
-                // Update UI Controls
-                document.getElementById('mic-btn').textContent = '🎤 Mic Active';
-                document.getElementById('mic-btn').style.background = 'rgba(0, 255, 136, 0.3)';
-                const audioToggle = document.getElementById('audio-toggle');
-                audioToggle.disabled = false;
-                audioToggle.checked = true;
-                settings.audio = true;
-                document.getElementById('audio-sensitivity').disabled = false;
-
-            } catch (err) {
-                console.error('Error accessing microphone:', err);
-                document.getElementById('mic-btn').textContent = '❌ Mic Denied';
-                document.getElementById('mic-btn').style.borderColor = '#ff3333';
-                document.getElementById('mic-btn').style.color = '#ff3333';
-            }
-        });
-
-        let diamonds = [], shockwaves = [], paintedNodes = [], mouse = { x: null, y: null };
-        let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
-        let gyro = { x: 0, y: 0 };
-        let screenShake = 0;
-        let pulsePhase = 0;
-        let smoothedBass = 0;
-        let smoothedAvg = 0;
-
-        function handleOrientation(e) {
-            gyro.x = e.gamma ? Math.max(-40, Math.min(40, e.gamma)) * 1.5 : 0;
-            gyro.y = e.beta ? Math.max(-40, Math.min(40, e.beta)) * 1.5 : 0;
-        }
-
-        function playShatterSound(isImplosion = false) {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const time = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const oscGain = audioCtx.createGain();
-            osc.type = settings.virus ? 'sawtooth' : 'sine';
-
-            // Water drop: fast upward frequency sweep, reversed for implosion
-            let dur = settings.bullet ? 0.3 : 0.15;
-            let startBase = settings.bullet ? 240 : 320;
-            let endBase = settings.bullet ? 550 : 750;
-
-            osc.frequency.setValueAtTime(isImplosion ? endBase : startBase, time);
-            osc.frequency.exponentialRampToValueAtTime(isImplosion ? startBase : endBase, time + 0.05);
-
-            // Fast percussive attack and decay
-            oscGain.gain.setValueAtTime(0, time);
-            oscGain.gain.linearRampToValueAtTime(settings.virus ? 0.2 : 0.4, time + 0.01);
-            oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
-
-            osc.connect(oscGain); oscGain.connect(audioCtx.destination);
-            osc.start(time); osc.stop(time + dur);
-        }
-
-        function triggerRainDrop(x, y) {
-            diamonds.forEach(d => {
-                let dx = d.x - x;
-                let dy = d.y - y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < 150) {
-                    let force = (150 - dist) / 150;
-                    d.vx += (dx / dist) * force * 80.0;
-                    d.vy += (dy / dist) * force * 80.0;
-                }
-            });
-        }
-
-        function handlePointer(e) {
-            const rect = app.view.getBoundingClientRect();
-            let clientX = e.clientX, clientY = e.clientY;
-            if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
-            if (clientX !== undefined && clientY !== undefined) {
-                mouse.x = clientX - rect.left; mouse.y = clientY - rect.top;
-            }
-        }
-
-        document.getElementById('clear-paint-btn').addEventListener('click', () => {
-            paintedNodes = [];
-        });
-
-        const onPointerDown = (e) => {
-            if (e.target.closest('#ui-panel')) return;
-
-            if (settings.paint) {
-                // Paint mode logic
-                settings.isHolding = false;
-                paintedNodes.push({ x: e.clientX, y: e.clientY });
-                if (paintedNodes.length > 500) paintedNodes.shift();
-            } else {
-                // Normal interaction logic
-                if (settings.parallax && !settings.parallaxRequested && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    settings.parallaxRequested = true;
-                    DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
-                } else if (settings.parallax && !settings.parallaxRequested) {
-                    settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
-                }
-                settings.isHolding = true;
-                handlePointer(e);
-                let isRightClick = (e.button === 2 || e.which === 3) || (e.touches && e.touches.length >= 2) || (activeTouches >= 2);
-                triggerShatter(mouse.x, mouse.y, isRightClick);
-                if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
-            }
-        };
-
-        const onPointerMove = (e) => {
-            if (settings.isHolding || !e.target.closest('#ui-panel')) {
-                handlePointer(e);
-            } else {
-                mouse.x = null;
-                mouse.y = null;
-            }
-
-            if (settings.paint && e.buttons > 0 && !e.target.closest('#ui-panel')) {
-                // Throttle drawing based on distance to prevent lag
-                let lastNode = paintedNodes[paintedNodes.length - 1];
-                if (!lastNode || Math.hypot(e.clientX - lastNode.x, e.clientY - lastNode.y) > 15) {
-                    paintedNodes.push({ x: e.clientX, y: e.clientY });
+                if (settings.brushType !== 'off') {
+                    // Paint mode logic
+                    settings.isHolding = false;
+                    paintedNodes.push({ x: e.clientX, y: e.clientY, type: settings.brushType });
                     if (paintedNodes.length > 500) paintedNodes.shift();
-                }
-            }
-        };
-        const onPointerUp = (e) => { settings.isHolding = false; if (e.pointerType === 'touch' || e.type === 'touchend') { mouse.x = null; mouse.y = null; } };
-        const onPointerLeave = (e) => { if (e.pointerType === 'mouse') { mouse.x = null; mouse.y = null; } };
-
-        let activeTouches = 0;
-
-        app.view.addEventListener('pointerdown', onPointerDown);
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
-        window.addEventListener('pointercancel', onPointerUp);
-        window.addEventListener('pointerleave', onPointerLeave);
-        app.view.addEventListener('touchstart', (e) => {
-            activeTouches = e.touches.length;
-            onPointerDown(e);
-        }, { passive: false });
-        window.addEventListener('touchmove', (e) => {
-            activeTouches = e.touches.length;
-            if (!e.target.closest('#ui-panel')) { e.preventDefault(); handlePointer(e); }
-        }, { passive: false });
-        window.addEventListener('touchend', (e) => {
-            activeTouches = e.touches.length;
-            onPointerUp(e);
-        });
-        window.addEventListener('touchcancel', (e) => {
-            activeTouches = e.touches.length;
-            onPointerUp(e);
-        });
-        app.view.addEventListener('contextmenu', e => e.preventDefault());
-
-        function triggerShatter(x, y, isImplosion = false) {
-            playShatterSound(isImplosion);
-            if (settings.bullet) settings.engineTimeScale = 0.08;
-            if (settings.chromatic) screenShake = 15;
-            if (settings.shockwave) shockwaves.push({ x, y, radius: 20, opacity: 1, infected: settings.virus, maxRadius: settings.shatterRadius });
-
-            diamonds.forEach(d => {
-                let dx = d.x - x, dy = d.y - y, dSq = dx * dx + dy * dy;
-                if (dSq < settings.shatterRadius ** 2) {
-                    let dist = Math.sqrt(dSq);
-                    let force = (settings.shatterRadius - dist) / settings.shatterRadius;
-                    let chaosMultiplier = Math.random() * 2.5 + 0.5;
-
-                    let appliedForce = force * settings.shatterForce * chaosMultiplier;
-                    if (isImplosion) {
-                        // Invert the force to pull particles towards the cursor
-                        appliedForce = -appliedForce * 1.5;
+                } else {
+                    // Normal interaction logic
+                    if (settings.parallax && !settings.parallaxRequested && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        settings.parallaxRequested = true;
+                        DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
+                    } else if (settings.parallax && !settings.parallaxRequested) {
+                        settings.parallaxRequested = true; window.addEventListener('deviceorientation', handleOrientation);
                     }
-
-                    d.vx += (dx / dist) * appliedForce;
-                    d.vy += (dy / dist) * appliedForce;
+                    settings.isHolding = true;
+                    handlePointer(e);
+                    let isRightClick = (e.button === 2 || e.which === 3) || (e.touches && e.touches.length >= 2) || (activeTouches >= 2);
+                    triggerShatter(mouse.x, mouse.y, isRightClick);
+                    if (e.pointerType === 'touch' && e.pointerId) app.view.releasePointerCapture(e.pointerId);
                 }
+            };
+
+            const onPointerMove = (e) => {
+                if (settings.isHolding || !e.target.closest('#ui-panel')) {
+                    handlePointer(e);
+                } else {
+                    mouse.x = null;
+                    mouse.y = null;
+                }
+
+                if (settings.brushType !== 'off' && e.buttons > 0 && !e.target.closest('#ui-panel')) {
+                    // Throttle drawing based on distance to prevent lag
+                    let lastNode = paintedNodes[paintedNodes.length - 1];
+                    if (!lastNode || Math.hypot(e.clientX - lastNode.x, e.clientY - lastNode.y) > 15) {
+                        paintedNodes.push({ x: e.clientX, y: e.clientY, type: settings.brushType });
+                        if (paintedNodes.length > 500) paintedNodes.shift();
+                    }
+                }
+            };
+            const onPointerUp = (e) => { settings.isHolding = false; if (e.pointerType === 'touch' || e.type === 'touchend') { mouse.x = null; mouse.y = null; } };
+            const onPointerLeave = (e) => { if (e.pointerType === 'mouse') { mouse.x = null; mouse.y = null; } };
+
+            let activeTouches = 0;
+
+            app.view.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('pointercancel', onPointerUp);
+            window.addEventListener('pointerleave', onPointerLeave);
+            app.view.addEventListener('touchstart', (e) => {
+                activeTouches = e.touches.length;
+                onPointerDown(e);
+            }, { passive: false });
+            window.addEventListener('touchmove', (e) => {
+                activeTouches = e.touches.length;
+                if (!e.target.closest('#ui-panel')) { e.preventDefault(); handlePointer(e); }
+            }, { passive: false });
+            window.addEventListener('touchend', (e) => {
+                activeTouches = e.touches.length;
+                onPointerUp(e);
             });
-        }
+            window.addEventListener('touchcancel', (e) => {
+                activeTouches = e.touches.length;
+                onPointerUp(e);
+            });
+            app.view.addEventListener('contextmenu', e => e.preventDefault());
 
-        function handleVirusToggle(on) {
-            if (on && diamonds.length > 0) diamonds[Math.floor(Math.random() * diamonds.length)].infected = true;
-            else diamonds.forEach(d => d.infected = false);
-        }
+            function triggerShatter(x, y, isImplosion = false) {
+                playShatterSound(isImplosion);
+                if (settings.bullet) settings.engineTimeScale = 0.08;
+                if (settings.chromatic) screenShake = 15;
+                if (settings.shockwave) shockwaves.push({ x, y, radius: 20, opacity: 1, infected: settings.virus, maxRadius: settings.shatterRadius });
 
-        class Diamond {
-            constructor() {
-                this.x = Math.random() * app.screen.width;
-                this.y = Math.random() * app.screen.height;
-                this.vx = (Math.random() - 0.5) * 4; this.vy = (Math.random() - 0.5) * 4;
-                this.baseVx = this.vx; this.baseVy = this.vy;
-                this.glow = 0; this.infected = false;
+                diamonds.forEach(d => {
+                    let dx = d.x - x, dy = d.y - y, dSq = dx * dx + dy * dy;
+                    if (dSq < settings.shatterRadius ** 2) {
+                        let dist = Math.sqrt(dSq);
+                        let force = (settings.shatterRadius - dist) / settings.shatterRadius;
+                        let chaosMultiplier = Math.random() * 2.5 + 0.5;
 
-                const hue = Math.random() * 360;
-                this.colorHex = hslToHex(hue, 80, 60);
+                        let appliedForce = force * settings.shatterForce * chaosMultiplier;
+                        if (isImplosion) {
+                            // Invert the force to pull particles towards the cursor
+                            appliedForce = -appliedForce * 1.5;
+                        }
 
-                this.sprites = [];
-                this.glowSprites = [];
-                this.rebuildSprites();
+                        d.vx += (dx / dist) * appliedForce;
+                        d.vy += (dy / dist) * appliedForce;
+                    }
+                });
             }
 
-            destroy() {
-                this.sprites.forEach(s => s.destroy());
-                this.glowSprites.forEach(s => s.destroy());
-                this.sprites = [];
-                this.glowSprites = [];
+            function handleVirusToggle(on) {
+                if (on && diamonds.length > 0) diamonds[Math.floor(Math.random() * diamonds.length)].infected = true;
+                else diamonds.forEach(d => d.infected = false);
             }
 
-            rebuildSprites() {
-                this.destroy();
-                let symMode = settings.symmetry;
-                let count = symMode === 1 ? 1 : (symMode === 2 ? 4 : 8);
+            class Diamond {
+                constructor() {
+                    this.x = Math.random() * app.screen.width;
+                    this.y = Math.random() * app.screen.height;
+                    this.vx = (Math.random() - 0.5) * 4; this.vy = (Math.random() - 0.5) * 4;
+                    this.baseVx = this.vx; this.baseVy = this.vy;
+                    this.glow = 0; this.infected = false;
 
-                for (let i = 0; i < count; i++) {
-                    let s = new PIXI.Sprite(diamondTexture);
-                    s.anchor.set(0.5);
-                    particleContainer.addChild(s);
-                    this.sprites.push(s);
+                    const hue = Math.random() * 360;
+                    this.colorHex = hslToHex(hue, 80, 60);
 
-                    let g = new PIXI.Sprite(glowTexture);
-                    g.anchor.set(0.5);
-                    glowContainer.addChild(g);
-                    this.glowSprites.push(g);
+                    this.sprites = [];
+                    this.glowSprites = [];
+                    this.rebuildSprites();
                 }
-            }
 
-            update(centerX, centerY, boidGrid, cellSize) {
-                // MOUSE PHYSICS
-                if (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x)) {
-                    let dx = mouse.x - this.x, dy = mouse.y - this.y, dist = Math.sqrt(dx * dx + dy * dy);
-                    if (settings.well) {
-                        if (settings.isHolding) {
-                            let grav = settings.gravity * 8;
-                            this.vx += (dx / dist) * grav; this.vy += (dy / dist) * grav;
-                        }
-                    } else {
-                        if (dist < 180) {
-                            let f = (180 - dist) / 180;
-                            this.vx -= (dx / dist) * f * settings.repel; this.vy -= (dy / dist) * f * settings.repel;
-                        }
-                        if (dist > 20) {
-                            if (settings.vortex) {
-                                this.vx += (-dy / dist) * settings.gravity * 5 + (dx / dist) * settings.gravity;
-                                this.vy += (dx / dist) * settings.gravity * 5 + (dy / dist) * settings.gravity;
-                            } else {
-                                this.vx += (dx / dist) * settings.gravity; this.vy += (dy / dist) * settings.gravity;
+                destroy() {
+                    this.sprites.forEach(s => s.destroy());
+                    this.glowSprites.forEach(s => s.destroy());
+                    this.sprites = [];
+                    this.glowSprites = [];
+                }
+
+                rebuildSprites() {
+                    this.destroy();
+                    let symMode = settings.symmetry;
+                    let count = symMode === 1 ? 1 : (symMode === 2 ? 4 : 8);
+
+                    for (let i = 0; i < count; i++) {
+                        let s = new PIXI.Sprite(diamondTexture);
+                        s.anchor.set(0.5);
+                        particleContainer.addChild(s);
+                        this.sprites.push(s);
+
+                        let g = new PIXI.Sprite(glowTexture);
+                        g.anchor.set(0.5);
+                        glowContainer.addChild(g);
+                        this.glowSprites.push(g);
+                    }
+                }
+
+                update(centerX, centerY, boidGrid, cellSize) {
+                    // MOUSE PHYSICS
+                    if (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x)) {
+                        let dx = mouse.x - this.x, dy = mouse.y - this.y, dist = Math.sqrt(dx * dx + dy * dy);
+                        if (settings.well) {
+                            if (settings.isHolding) {
+                                let grav = settings.gravity * 8;
+                                this.vx += (dx / dist) * grav; this.vy += (dy / dist) * grav;
+                            }
+                        } else {
+                            if (dist < 180) {
+                                let f = (180 - dist) / 180;
+                                this.vx -= (dx / dist) * f * settings.repel; this.vy -= (dy / dist) * f * settings.repel;
+                            }
+                            if (dist > 20) {
+                                if (settings.vortex) {
+                                    this.vx += (-dy / dist) * settings.gravity * 5 + (dx / dist) * settings.gravity;
+                                    this.vy += (dx / dist) * settings.gravity * 5 + (dy / dist) * settings.gravity;
+                                } else {
+                                    this.vx += (dx / dist) * settings.gravity; this.vy += (dy / dist) * settings.gravity;
+                                }
                             }
                         }
                     }
-                }
-                // PAINTED NODES PHYSICS (Attract particles to drawn anchors and let them stack)
-                let emitterGrav = settings['emitter-gravity'];
-                if (paintedNodes.length > 0 && emitterGrav > 0) {
-                    let minSq = 22500; // 150px range limit
-                    let closestNode = null;
+                    // PAINTED NODES PHYSICS (Attract particles to drawn anchors and let them stack)
+                    let emitterGrav = settings['emitter-gravity'];
+                    this.attachDepth = 9999;
 
-                    // Find ONLY the single closest node to prevent clumping at the center of mass
-                    paintedNodes.forEach(p => {
-                        let dx = p.x - this.x, dy = p.y - this.y, distSq = dx * dx + dy * dy;
-                        if (distSq < minSq) {
-                            minSq = distSq;
-                            closestNode = p;
+                    if (paintedNodes.length > 0 && emitterGrav > 0) {
+                        let minSq = 22500; // 150px range limit
+                        let closestNode = null;
+                        let closestDepth = 0;
+
+                        // Find ONLY the single closest node to prevent clumping at the center of mass
+                        paintedNodes.forEach(p => {
+                            let dx = p.x - this.x, dy = p.y - this.y, distSq = dx * dx + dy * dy;
+                            if (distSq < minSq) {
+                                minSq = distSq;
+                                closestNode = p;
+                                closestDepth = 0; // The true source roots have depth 0
+                            }
+                        });
+
+                        // ALSO check attached particles in the spatial grid so stacking emitters pass on gravity
+                        let gx = Math.floor(this.x / cellSize);
+                        let gy = Math.floor(this.y / cellSize);
+                        if (boidGrid) {
+                            for (let nx = gx - 1; nx <= gx + 1; nx++) {
+                                for (let ny = gy - 1; ny <= gy + 1; ny++) {
+                                    let key = nx + ',' + ny;
+                                    if (boidGrid[key]) {
+                                        boidGrid[key].forEach(other => {
+                                            // Only attach to things validly attached recently (depth < limit)
+                                            if (other !== this && other.attachDepth < 100) {
+                                                let dx = other.x - this.x, dy = other.y - this.y;
+                                                let distSq = dx * dx + dy * dy;
+                                                if (distSq < minSq) {
+                                                    minSq = distSq;
+                                                    closestNode = other;
+                                                    closestDepth = other.attachDepth;
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            }
                         }
-                    });
 
-                    if (closestNode) {
-                        let dx = closestNode.x - this.x;
-                        let dy = closestNode.y - this.y;
-                        let dist = Math.sqrt(minSq);
-                        let targetRadius = 25; // The shell radius where they stack
+                        if (closestNode) {
+                            let dx = closestNode.x - this.x;
+                            let dy = closestNode.y - this.y;
+                            let dist = Math.sqrt(minSq);
 
-                        if (dist > targetRadius) {
-                            // Attract forward ONLY to the closest point
-                            let force = (150 - dist) / 150;
-                            this.vx += (dx / dist) * force * emitterGrav;
-                            this.vy += (dy / dist) * force * emitterGrav;
-                        } else {
-                            // Push back to prevent collapsing to the exact center point
-                            let force = (targetRadius - dist) / targetRadius;
-                            this.vx -= (dx / dist) * force * emitterGrav * 1.2;
-                            this.vy -= (dy / dist) * force * emitterGrav * 1.2;
+                            // Handle physics based on the origin node's brush type
+                            // If attached to a particle, it inherits the type of the root node it's attached to!
+                            let brushType = closestNode.type || 'gravity';
 
-                            // Apply heavy friction when locked in the shell so they nest
-                            this.vx *= 0.85;
-                            this.vy *= 0.85;
+                            if (brushType === 'gravity') {
+                                let targetRadius = 25; // The shell radius where they stack
+
+                                if (dist > targetRadius) {
+                                    // Attract forward ONLY to the closest point
+                                    let force = (150 - dist) / 150;
+                                    this.vx += (dx / dist) * force * emitterGrav;
+                                    this.vy += (dy / dist) * force * emitterGrav;
+                                } else {
+                                    // Push back to prevent collapsing to the exact center point
+                                    let force = (targetRadius - dist) / targetRadius;
+                                    this.vx -= (dx / dist) * force * emitterGrav * 1.2;
+                                    this.vy -= (dy / dist) * force * emitterGrav * 1.2;
+
+                                    // Apply heavy friction when locked in the shell so they nest
+                                    this.vx *= 0.85;
+                                    this.vy *= 0.85;
+
+                                    // Become an emitter by inheriting the closest valid depth + 1
+                                    this.attachDepth = closestDepth + 1;
+                                    this.type = 'gravity'; // Inherit type so we pass on the right force
+                                }
+                            } else if (brushType === 'repulsor') {
+                                // Violent push away
+                                let force = (150 - dist) / 150;
+                                this.vx -= (dx / dist) * force * emitterGrav * 2.5;
+                                this.vy -= (dy / dist) * force * emitterGrav * 2.5;
+                            } else if (brushType === 'vortex') {
+                                // Rotational tangential force (+ pull towards center)
+                                let force = (150 - dist) / 150;
+                                let perpX = -dy / dist;
+                                let perpY = dx / dist;
+
+                                this.vx += perpX * force * emitterGrav * 1.5;
+                                this.vy += perpY * force * emitterGrav * 1.5;
+
+                                // Slight inward pull to keep them in orbit instead of flying off
+                                this.vx += (dx / dist) * force * emitterGrav * 0.2;
+                                this.vy += (dy / dist) * force * emitterGrav * 0.2;
+                            }
                         }
                     }
                 }
 
                 // --- AI LOGIC ---
-                if (settings.flock || settings.fluid) {
-                    if (settings.fluid) this.vy += 0.2 * settings.engineTimeScale;
+                if(settings.flock || settings.fluid) {
+                if (settings.fluid) this.vy += 0.2 * settings.engineTimeScale;
 
-                    let isLeaderActive = (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x));
-                    let distToLeader = isLeaderActive ? Math.sqrt((mouse.x - this.x) ** 2 + (mouse.y - this.y) ** 2) : Infinity;
+                let isLeaderActive = (mouse.x !== null && mouse.y !== null && !isNaN(mouse.x));
+                let distToLeader = isLeaderActive ? Math.sqrt((mouse.x - this.x) ** 2 + (mouse.y - this.y) ** 2) : Infinity;
 
-                    let separationDist = 50;
-                    if (isLeaderActive && distToLeader < 400 && settings.flock) {
-                        separationDist = 20 + (distToLeader / 400) * 30;
-                    }
-                    let rangeSq = 80 * 80;
+                let separationDist = 50;
+                if (isLeaderActive && distToLeader < 400 && settings.flock) {
+                    separationDist = 20 + (distToLeader / 400) * 30;
+                }
+                let rangeSq = 80 * 80;
 
-                    let gx = Math.floor(this.x / cellSize);
-                    let gy = Math.floor(this.y / cellSize);
-                    let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
-                    let count = 0;
+                let gx = Math.floor(this.x / cellSize);
+                let gy = Math.floor(this.y / cellSize);
+                let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
+                let count = 0;
 
-                    for (let nx = gx - 1; nx <= gx + 1; nx++) {
-                        for (let ny = gy - 1; ny <= gy + 1; ny++) {
-                            let key = nx + ',' + ny;
-                            if (boidGrid[key]) {
-                                boidGrid[key].forEach(other => {
-                                    if (other !== this) {
-                                        let dx = this.x - other.x;
-                                        let dy = this.y - other.y;
-                                        let dSq = dx * dx + dy * dy;
-                                        if (dSq < rangeSq && dSq > 0) {
-                                            if (other.vx !== undefined) {
-                                                alignX += other.vx;
-                                                alignY += other.vy;
-                                            }
-                                            cohX += other.x;
-                                            cohY += other.y;
-                                            let d = Math.sqrt(dSq);
-                                            if (d < separationDist) {
-                                                let str = (separationDist - d) / separationDist;
-                                                sepX += (dx / d) * str;
-                                                sepY += (dy / d) * str;
-                                            }
-                                            count++;
+                for (let nx = gx - 1; nx <= gx + 1; nx++) {
+                    for (let ny = gy - 1; ny <= gy + 1; ny++) {
+                        let key = nx + ',' + ny;
+                        if (boidGrid[key]) {
+                            boidGrid[key].forEach(other => {
+                                if (other !== this) {
+                                    let dx = this.x - other.x;
+                                    let dy = this.y - other.y;
+                                    let dSq = dx * dx + dy * dy;
+                                    if (dSq < rangeSq && dSq > 0) {
+                                        if (other.vx !== undefined) {
+                                            alignX += other.vx;
+                                            alignY += other.vy;
                                         }
+                                        cohX += other.x;
+                                        cohY += other.y;
+                                        let d = Math.sqrt(dSq);
+                                        if (d < separationDist) {
+                                            let str = (separationDist - d) / separationDist;
+                                            sepX += (dx / d) * str;
+                                            sepY += (dy / d) * str;
+                                        }
+                                        count++;
                                     }
-                                });
-                            }
+                                }
+                            });
                         }
                     }
+                }
 
-                    if (count > 0) {
-                        let speed = 0.15;
-                        this.vx += (alignX / count - this.vx) * speed * 0.8;
-                        this.vy += (alignY / count - this.vy) * speed * 0.8;
-                        this.vx += ((cohX / count) - this.x) * speed * 0.015;
-                        this.vy += ((cohY / count) - this.y) * speed * 0.015;
-                        this.vx += sepX * speed * 8.0;
-                        this.vy += sepY * speed * 8.0;
-                    } else if (settings.flock) {
-                        this.vx += (Math.random() - 0.5) * 0.1;
-                        this.vy += (Math.random() - 0.5) * 0.1;
-                    }
+                if (count > 0) {
+                    let speed = 0.15;
+                    this.vx += (alignX / count - this.vx) * speed * 0.8;
+                    this.vy += (alignY / count - this.vy) * speed * 0.8;
+                    this.vx += ((cohX / count) - this.x) * speed * 0.015;
+                    this.vy += ((cohY / count) - this.y) * speed * 0.015;
+                    this.vx += sepX * speed * 8.0;
+                    this.vy += sepY * speed * 8.0;
+                } else if (settings.flock) {
+                    this.vx += (Math.random() - 0.5) * 0.1;
+                    this.vy += (Math.random() - 0.5) * 0.1;
+                }
 
-                    if (isLeaderActive && settings.flock) {
-                        let dx = mouse.x - this.x;
-                        let dy = mouse.y - this.y;
-                        let dist = Math.sqrt(dx * dx + dy * dy);
-                        let reactionFalloff = 600;
-                        let reactivity = Math.max(0, 1.0 - (dist / reactionFalloff));
-                        reactivity = Math.pow(reactivity, 3);
-                        let factor = 0.03 * reactivity;
-                        this.vx += dx * factor;
-                        this.vy += dy * factor;
-                    }
+                if (isLeaderActive && settings.flock) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let reactionFalloff = 600;
+                    let reactivity = Math.max(0, 1.0 - (dist / reactionFalloff));
+                    reactivity = Math.pow(reactivity, 3);
+                    let factor = 0.03 * reactivity;
+                    this.vx += dx * factor;
+                    this.vy += dy * factor;
+                }
 
-                    let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                    if (currentSpeed < 2.0) {
-                        if (currentSpeed === 0) { this.vx = Math.random() - 0.5; this.vy = Math.random() - 0.5; }
-                        else {
-                            let factor = 2.0 / currentSpeed;
-                            this.vx *= factor; this.vy *= factor;
-                        }
-                    }
-                    let maxSpeed = isLeaderActive ? 9.0 : 6.0;
-                    if (currentSpeed > maxSpeed) {
-                        let factor = maxSpeed / currentSpeed;
+                let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (currentSpeed < 2.0) {
+                    if (currentSpeed === 0) { this.vx = Math.random() - 0.5; this.vy = Math.random() - 0.5; }
+                    else {
+                        let factor = 2.0 / currentSpeed;
                         this.vx *= factor; this.vy *= factor;
                     }
                 }
-
-                if (settings.flow) {
-                    let nx = Math.sin(this.x * 0.005 + animationTime) * Math.cos(this.y * 0.005 - animationTime);
-                    let ny = Math.sin(this.y * 0.01 - animationTime) * Math.cos(this.x * 0.01 + animationTime);
-                    let flowAngle = (nx + ny) * Math.PI * 2;
-                    this.vx += Math.cos(flowAngle) * 0.2;
-                    this.vy += Math.sin(flowAngle) * 0.2;
-                }
-
-                if (settings.fire) {
-                    this.vy -= 0.1 * settings.engineTimeScale;
-                    this.vx += (Math.random() - 0.5) * 0.5 * settings.engineTimeScale;
-                    if (this.y < -50) {
-                        this.y = app.screen.height + 50;
-                        this.x = Math.random() * app.screen.width;
-                        this.vx = (Math.random() - 0.5) * 2;
-                        this.vy = (Math.random() * -2) - 1;
-                    }
-                }
-
-                if (settings.rain) {
-                    this.vx *= 0.9;
-                    this.vy *= 0.9;
-                    this.vy += Math.sin(this.x * 0.02 + animationTime * 2) * 0.05;
-                    this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
-                }
-
-                let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
-                this.vx *= friction;
-                this.vy *= friction;
-
-                if (this.infected) {
-                    this.vx += Math.random() - 0.5;
-                    this.vy += Math.random() - 0.5;
-                }
-                else if (!settings.flock && !settings.fluid && !settings.fire && !settings.rain) {
-                    this.vx += (this.baseVx - this.vx) * 0.05;
-                    this.vy += (this.baseVy - this.vy) * 0.05;
-                }
-
-                this.x += this.vx * settings.engineTimeScale;
-                this.y += this.vy * settings.engineTimeScale;
-
-                if (settings.wrap) {
-                    if (this.x < -10) this.x = app.screen.width + 10;
-                    if (this.x > app.screen.width + 10) this.x = -10;
-                    if (this.y < -10) this.y = app.screen.height + 10;
-                    if (this.y > app.screen.height + 10) this.y = -10;
-                } else {
-                    if (this.x < 0) { this.x = 0; this.vx *= -0.8; this.baseVx *= -1; }
-                    if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; this.baseVx *= -1; }
-                    if (this.y < 0) { this.y = 0; this.vy *= -0.8; this.baseVy *= -1; }
-                    if (this.y > app.screen.height) {
-                        this.y = app.screen.height;
-                        this.vy *= -0.6;
-                        this.vx *= 0.95;
-                        this.baseVy *= -1;
-                    }
-                }
-
-                this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx ** 2 + this.vy ** 2) - 2.5) / 12));
-
-                let pulseScale = 1.0;
-                if (settings['pulse-speed'] > 0) {
-                    pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
-                }
-
-                let coreSize = settings.size * pulseScale;
-                let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
-
-                // --- COLOR LOGIC ---
-                let color;
-                if (settings.fire) {
-                    let fireHue = Math.random() * 45;
-                    color = hslToHex(fireHue, 100, 60);
-                } else if (settings.color) {
-                    color = this.infected ? 0xff2233 : this.colorHex;
-                } else {
-                    color = this.infected ? 0xff2233 : settings.colors.core;
-                }
-
-                let alpha = settings.kinetic ? 0.05 + 0.95 * this.glow : 1;
-
-                if (settings.rain) {
-                    alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
-                }
-
-                let count = this.sprites.length;
-                let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8));
-                let relX = this.x - centerX;
-                let relY = this.y - centerY;
-
-                for (let i = 0; i < count; i++) {
-                    let s = this.sprites[i];
-                    let g = this.glowSprites[i];
-
-                    if (count === 1) {
-                        s.x = this.x; s.y = this.y;
-                        g.x = this.x; g.y = this.y;
-                    } else {
-                        let theta = angleStep * i;
-                        let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
-                        let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
-                        s.x = centerX + rotX; s.y = centerY + rotY;
-                        g.x = centerX + rotX; g.y = centerY + rotY;
-                    }
-
-                    s.tint = color;
-                    s.alpha = alpha;
-                    s.width = coreSize; s.height = coreSize;
-
-                    if (settings.color || settings.fire) {
-                        g.tint = color;
-                    } else {
-                        g.tint = settings.colors.glow;
-                    }
-                    g.alpha = alpha;
-                    g.width = glowBaseSize; g.height = glowBaseSize;
+                let maxSpeed = isLeaderActive ? 9.0 : 6.0;
+                if (currentSpeed > maxSpeed) {
+                    let factor = maxSpeed / currentSpeed;
+                    this.vx *= factor; this.vy *= factor;
                 }
             }
-        }
 
-        function adjustSwarmDensity() {
-            while (diamonds.length < settings.density) {
-                diamonds.push(new Diamond());
-            }
-            while (diamonds.length > settings.density) {
-                let d = diamonds.pop();
-                d.destroy();
-            }
-        }
-
-        app.ticker.add((delta) => {
-            frames++; animationTime += 0.01;
-            let now = performance.now();
-            if (now > lastFpsUpdate + 500) {
-                document.getElementById('fps-counter').textContent = Math.round((frames * 1000) / (now - lastFpsUpdate));
-                frames = 0; lastFpsUpdate = now;
+            if (settings.flow) {
+                let nx = Math.sin(this.x * 0.005 + animationTime) * Math.cos(this.y * 0.005 - animationTime);
+                let ny = Math.sin(this.y * 0.01 - animationTime) * Math.cos(this.x * 0.01 + animationTime);
+                let flowAngle = (nx + ny) * Math.PI * 2;
+                this.vx += Math.cos(flowAngle) * 0.2;
+                this.vy += Math.sin(flowAngle) * 0.2;
             }
 
-            if (settings['pulse-speed'] > 0) {
-                pulsePhase += 0.02 * settings['pulse-speed'];
+            if (settings.fire) {
+                this.vy -= 0.1 * settings.engineTimeScale;
+                this.vx += (Math.random() - 0.5) * 0.5 * settings.engineTimeScale;
+                if (this.y < -50) {
+                    this.y = app.screen.height + 50;
+                    this.x = Math.random() * app.screen.width;
+                    this.vx = (Math.random() - 0.5) * 2;
+                    this.vy = (Math.random() * -2) - 1;
+                }
             }
 
-            if (settings.rain && Math.random() < 0.08) {
-                triggerRainDrop(Math.random() * app.screen.width, Math.random() * app.screen.height);
+            if (settings.rain) {
+                this.vx *= 0.9;
+                this.vy *= 0.9;
+                this.vy += Math.sin(this.x * 0.02 + animationTime * 2) * 0.05;
+                this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
             }
 
-            fadeLayer.clear();
-            if (settings.trail) {
-                fadeLayer.beginFill(currentBgHex, 0.15);
-                fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
-                fadeLayer.endFill();
+            let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
+            this.vx *= friction;
+            this.vy *= friction;
+
+            if (this.infected) {
+                this.vx += Math.random() - 0.5;
+                this.vy += Math.random() - 0.5;
+            }
+            else if (!settings.flock && !settings.fluid && !settings.fire && !settings.rain) {
+                this.vx += (this.baseVx - this.vx) * 0.05;
+                this.vy += (this.baseVy - this.vy) * 0.05;
+            }
+
+            this.x += this.vx * settings.engineTimeScale;
+            this.y += this.vy * settings.engineTimeScale;
+
+            if (settings.wrap) {
+                if (this.x < -10) this.x = app.screen.width + 10;
+                if (this.x > app.screen.width + 10) this.x = -10;
+                if (this.y < -10) this.y = app.screen.height + 10;
+                if (this.y > app.screen.height + 10) this.y = -10;
             } else {
-                fadeLayer.beginFill(currentBgHex, 1.0);
-                fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
-                fadeLayer.endFill();
+                if (this.x < 0) { this.x = 0; this.vx *= -0.8; this.baseVx *= -1; }
+                if (this.x > app.screen.width) { this.x = app.screen.width; this.vx *= -0.8; this.baseVx *= -1; }
+                if (this.y < 0) { this.y = 0; this.vy *= -0.8; this.baseVy *= -1; }
+                if (this.y > app.screen.height) {
+                    this.y = app.screen.height;
+                    this.vy *= -0.6;
+                    this.vx *= 0.95;
+                    this.baseVy *= -1;
+                }
             }
 
-            // Render Painted Nodes
-            if (paintedNodes.length > 0) {
-                fadeLayer.beginFill(settings.colors.core, 0.8);
-                paintedNodes.forEach(node => {
-                    fadeLayer.drawCircle(node.x, node.y, 4);
-                });
-                fadeLayer.endFill();
+            this.glow = Math.max(0, Math.min(1, (Math.sqrt(this.vx ** 2 + this.vy ** 2) - 2.5) / 12));
+
+            let pulseScale = 1.0;
+            if (settings['pulse-speed'] > 0) {
+                pulseScale = 1.0 + Math.sin(pulsePhase) * 0.3 * (settings['pulse-speed'] / 5);
             }
 
-            glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
-            particleContainer.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
-            webGraphics.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
-            shockwaveGraphics.blendMode = settings.chromatic || settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+            let coreSize = settings.size * pulseScale;
+            let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale;
 
-            let sx = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
-            let sy = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
-            mainStage.x = sx - (settings.parallax ? gyro.x : 0);
-            mainStage.y = sy - (settings.parallax ? gyro.y : 0);
-            if (screenShake > 0) screenShake *= 0.8;
+            // --- COLOR LOGIC ---
+            let color;
+            if (settings.fire) {
+                let fireHue = Math.random() * 45;
+                color = hslToHex(fireHue, 100, 60);
+            } else if (settings.color) {
+                color = this.infected ? 0xff2233 : this.colorHex;
+            } else {
+                color = this.infected ? 0xff2233 : settings.colors.core;
+            }
 
-            settings.engineTimeScale += (1.0 - settings.engineTimeScale) * 0.02;
+            let alpha = settings.kinetic ? 0.05 + 0.95 * this.glow : 1;
 
-            // --- Audio Reactivity Logic ---
-            let audioBass = 0;
-            let audioHigh = 0;
-            let audioAvg = 0;
+            if (settings.rain) {
+                alpha = 0.4 + 0.6 * Math.sin(animationTime * 3 + this.x * 0.1 + this.y * 0.1);
+            }
 
-            if (isAudioInitialized && settings.audio && micAnalyser) {
-                micAnalyser.getByteFrequencyData(audioDataArray);
+            let count = this.sprites.length;
+            let angleStep = (Math.PI * 2) / (count === 1 ? 1 : (count === 4 ? 4 : 8));
+            let relX = this.x - centerX;
+            let relY = this.y - centerY;
 
-                // Calculate bass (lower frequencies, e.g. bins 0-10)
-                for (let i = 0; i < 10; i++) audioBass += audioDataArray[i];
-                audioBass = (audioBass / 10) / 255.0; // Normalize 0-1
+            for (let i = 0; i < count; i++) {
+                let s = this.sprites[i];
+                let g = this.glowSprites[i];
 
-                // Calculate highs (e.g. bins 80-120)
-                for (let i = 80; i < 120; i++) audioHigh += audioDataArray[i];
-                audioHigh = (audioHigh / 40) / 255.0;
-
-                // Calculate overall average
-                for (let i = 0; i < audioDataArray.length; i++) audioAvg += audioDataArray[i];
-                audioAvg = (audioAvg / audioDataArray.length) / 255.0;
-
-                // Apply Sensitivity Slider
-                audioBass = Math.min(1.0, audioBass * settings['audio-sensitivity']);
-                audioHigh = Math.min(1.0, audioHigh * settings['audio-sensitivity']);
-                audioAvg = Math.min(1.0, audioAvg * settings['audio-sensitivity']);
-
-                // Smooth out the audio signals to prevent flickering
-                smoothedBass += (audioBass - smoothedBass) * 0.15;
-                smoothedAvg += (audioAvg - smoothedAvg) * 0.1;
-
-                // Modulate Visuals based on Audio (Smoothed)
-                // Set glow radius size explicitly to 7
-                diamondBlur.blur = 7;
-
-                // Allow glow luminance opacity to go from .03 to .1
-                let targetAlpha = 0.03 + (smoothedBass * 0.07);
-                glowContainer.alpha = Math.min(Math.max(targetAlpha, 0.03), 0.1);
-                // Accelerate particles when the overall volume is high
-                if (smoothedAvg > 0.1) {
-                    settings.engineTimeScale = 1.0 + (smoothedAvg * 1.5);
+                if (count === 1) {
+                    s.x = this.x; s.y = this.y;
+                    g.x = this.x; g.y = this.y;
+                } else {
+                    let theta = angleStep * i;
+                    let rotX = relX * Math.cos(theta) - relY * Math.sin(theta);
+                    let rotY = relX * Math.sin(theta) + relY * Math.cos(theta);
+                    s.x = centerX + rotX; s.y = centerY + rotY;
+                    g.x = centerX + rotX; g.y = centerY + rotY;
                 }
 
-                // Randomly trigger erratic scattering on high-hat/snare hits
-                if (audioHigh > 0.5) {
-                    let scatterForce = audioHigh * 8.0;
-                    diamonds.forEach(d => {
-                        // Only scatter a small percentage of particles at a time
-                        if (Math.random() > 0.8) {
-                            // Some pixels scatter faster/farther than others
-                            let intensity = Math.random() * scatterForce;
-                            d.vx += (Math.random() - 0.5) * intensity;
-                            d.vy += (Math.random() - 0.5) * intensity;
-                        }
+                s.tint = color;
+                s.alpha = alpha;
+                s.width = coreSize; s.height = coreSize;
+
+                if (settings.color || settings.fire) {
+                    g.tint = color;
+                } else {
+                    g.tint = settings.colors.glow;
+                }
+                g.alpha = alpha;
+                g.width = glowBaseSize; g.height = glowBaseSize;
+            }
+
+            function adjustSwarmDensity() {
+                while (diamonds.length < settings.density) {
+                    diamonds.push(new Diamond());
+                }
+                while (diamonds.length > settings.density) {
+                    let d = diamonds.pop();
+                    d.destroy();
+                }
+            }
+
+            app.ticker.add((delta) => {
+                frames++; animationTime += 0.01;
+                let now = performance.now();
+                if (now > lastFpsUpdate + 500) {
+                    document.getElementById('fps-counter').textContent = Math.round((frames * 1000) / (now - lastFpsUpdate));
+                    frames = 0; lastFpsUpdate = now;
+                }
+
+                if (settings['pulse-speed'] > 0) {
+                    pulsePhase += 0.02 * settings['pulse-speed'];
+                }
+
+                if (settings.rain && Math.random() < 0.08) {
+                    triggerRainDrop(Math.random() * app.screen.width, Math.random() * app.screen.height);
+                }
+
+                fadeLayer.clear();
+                if (settings.trail) {
+                    fadeLayer.beginFill(currentBgHex, 0.15);
+                    fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
+                    fadeLayer.endFill();
+                } else {
+                    fadeLayer.beginFill(currentBgHex, 1.0);
+                    fadeLayer.drawRect(0, 0, app.screen.width, app.screen.height);
+                    fadeLayer.endFill();
+                }
+
+                // Render Painted Nodes
+                if (paintedNodes.length > 0) {
+                    paintedNodes.forEach(node => {
+                        let nodeColor = settings.colors.core;
+                        if (node.type === 'repulsor') nodeColor = 0xff3333; // Red
+                        else if (node.type === 'vortex') nodeColor = 0xaa33ff; // Purple
+
+                        fadeLayer.beginFill(nodeColor, 0.8);
+                        fadeLayer.drawCircle(node.x, node.y, 4);
+                        fadeLayer.endFill();
                     });
                 }
-            }
 
-            let boidGrid = {};
-            let boidCell = 70;
-            if (settings.flock || settings.fluid) {
-                // Combine diamonds and paintedNodes for structural interaction
-                [...diamonds, ...paintedNodes].forEach(d => {
-                    let key = Math.floor(d.x / boidCell) + ',' + Math.floor(d.y / boidCell);
-                    if (!boidGrid[key]) boidGrid[key] = [];
-                    boidGrid[key].push(d);
-                });
-            }
+                glowContainer.blendMode = PIXI.BLEND_MODES.ADD;
+                particleContainer.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+                webGraphics.blendMode = settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
+                shockwaveGraphics.blendMode = settings.chromatic || settings.additive ? PIXI.BLEND_MODES.ADD : PIXI.BLEND_MODES.NORMAL;
 
-            let centerX = app.screen.width / 2;
-            let centerY = app.screen.height / 2;
-            diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
+                let sx = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+                let sy = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+                mainStage.x = sx - (settings.parallax ? gyro.x : 0);
+                mainStage.y = sy - (settings.parallax ? gyro.y : 0);
+                if (screenShake > 0) screenShake *= 0.8;
 
-            webGraphics.clear();
+                settings.engineTimeScale += (1.0 - settings.engineTimeScale) * 0.02;
 
-            let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
-            let effectiveDensityThresh = settings['density-threshold'];
+                // --- Audio Reactivity Logic ---
+                let audioBass = 0;
+                let audioHigh = 0;
+                let audioAvg = 0;
 
-            if (effectiveMaxNeighbors > 0) {
-                let maxSq = settings.distance ** 2, cell = settings.distance, grid = {};
+                if (isAudioInitialized && settings.audio && micAnalyser) {
+                    micAnalyser.getByteFrequencyData(audioDataArray);
 
-                // Add moving particles into spatial grid
-                diamonds.forEach((d, i) => {
-                    let k = Math.floor(d.x / cell) + ',' + Math.floor(d.y / cell);
-                    if (!grid[k]) grid[k] = [];
-                    // Store as object { type: 'd', index: i }
-                    grid[k].push({ type: 'd', index: i });
-                });
+                    // Calculate bass (lower frequencies, e.g. bins 0-10)
+                    for (let i = 0; i < 10; i++) audioBass += audioDataArray[i];
+                    audioBass = (audioBass / 10) / 255.0; // Normalize 0-1
 
-                // Add painted static nodes into spatial grid
-                paintedNodes.forEach((p, i) => {
-                    let k = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
-                    if (!grid[k]) grid[k] = [];
-                    // Store as object { type: 'p', index: i }
-                    grid[k].push({ type: 'p', index: i });
-                });
+                    // Calculate highs (e.g. bins 80-120)
+                    for (let i = 80; i < 120; i++) audioHigh += audioDataArray[i];
+                    audioHigh = (audioHigh / 40) / 255.0;
 
-                diamonds.forEach((d1, i) => {
-                    let gx = Math.floor(d1.x / cell), gy = Math.floor(d1.y / cell), neighbors = [];
-                    if ((grid[gx + ',' + gy] || []).length > effectiveDensityThresh) return;
+                    // Calculate overall average
+                    for (let i = 0; i < audioDataArray.length; i++) audioAvg += audioDataArray[i];
+                    audioAvg = (audioAvg / audioDataArray.length) / 255.0;
 
-                    for (let x = gx - 1; x <= gx + 1; x++) for (let y = gy - 1; y <= gy + 1; y++) {
-                        (grid[x + ',' + y] || []).forEach(nodeRef => {
-                            if (nodeRef.type === 'd' && nodeRef.index <= i) return; // Avoid double checking diamonds
+                    // Apply Sensitivity Slider
+                    audioBass = Math.min(1.0, audioBass * settings['audio-sensitivity']);
+                    audioHigh = Math.min(1.0, audioHigh * settings['audio-sensitivity']);
+                    audioAvg = Math.min(1.0, audioAvg * settings['audio-sensitivity']);
 
-                            let otherNode = nodeRef.type === 'd' ? diamonds[nodeRef.index] : paintedNodes[nodeRef.index];
-                            let dx = d1.x - otherNode.x;
-                            let dy = d1.y - otherNode.y;
-                            let dSq = dx * dx + dy * dy;
+                    // Smooth out the audio signals to prevent flickering
+                    smoothedBass += (audioBass - smoothedBass) * 0.15;
+                    smoothedAvg += (audioAvg - smoothedAvg) * 0.1;
 
-                            if (dSq < maxSq) {
-                                neighbors.push({ nodeRef, dSq, otherNode });
-                                if (settings.virus && nodeRef.type === 'd' && dSq < maxSq * 0.4 && Math.random() > 0.98) {
-                                    if (d1.infected) diamonds[nodeRef.index].infected = true;
-                                    else if (diamonds[nodeRef.index].infected) d1.infected = true;
-                                }
+                    // Modulate Visuals based on Audio (Smoothed)
+                    // Set glow radius size explicitly to 7
+                    diamondBlur.blur = 7;
+
+                    // Allow glow luminance opacity to go from .03 to .1
+                    let targetAlpha = 0.03 + (smoothedBass * 0.07);
+                    glowContainer.alpha = Math.min(Math.max(targetAlpha, 0.03), 0.1);
+                    // Accelerate particles when the overall volume is high
+                    if (smoothedAvg > 0.1) {
+                        settings.engineTimeScale = 1.0 + (smoothedAvg * 1.5);
+                    }
+
+                    // Randomly trigger erratic scattering on high-hat/snare hits
+                    if (audioHigh > 0.5) {
+                        let scatterForce = audioHigh * 8.0;
+                        diamonds.forEach(d => {
+                            // Only scatter a small percentage of particles at a time
+                            if (Math.random() > 0.8) {
+                                // Some pixels scatter faster/farther than others
+                                let intensity = Math.random() * scatterForce;
+                                d.vx += (Math.random() - 0.5) * intensity;
+                                d.vy += (Math.random() - 0.5) * intensity;
                             }
                         });
                     }
+                }
 
-                    let closestNeighbors = neighbors.sort((a, b) => a.dSq - b.dSq).slice(0, effectiveMaxNeighbors);
+                let boidGrid = {};
+                let boidCell = 70;
+                if (settings.flock || settings.fluid || (paintedNodes.length > 0 && settings['emitter-gravity'] > 0)) {
+                    // Combine diamonds and paintedNodes for structural interaction
+                    [...diamonds, ...paintedNodes].forEach(d => {
+                        let key = Math.floor(d.x / boidCell) + ',' + Math.floor(d.y / boidCell);
+                        if (!boidGrid[key]) boidGrid[key] = [];
+                        boidGrid[key].push(d);
+                    });
+                }
 
-                    closestNeighbors.forEach((n1, idx) => {
-                        closestNeighbors.slice(idx + 1).forEach(n2 => {
-                            let d2 = n1.otherNode, d3 = n2.otherNode, d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
-                            if (d23Sq < maxSq) {
-                                let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
-                                let op = (1 - (distMax / settings.distance)) * 0.4;
-                                if (settings.additive) op *= 0.3;
+                let centerX = app.screen.width / 2;
+                let centerY = app.screen.height / 2;
+                diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
 
-                                // Default glow to 1.0 for painted nodes, otherwise use diamond glow
-                                let d1Glow = d1.glow || 1.0;
-                                let d2Glow = d2.glow || 1.0;
-                                let d3Glow = d3.glow || 1.0;
-                                if (settings.kinetic) op *= (0.02 + 0.98 * (d1Glow + d2Glow + d3Glow) / 3);
+                webGraphics.clear();
 
-                                let inf = d1.infected || d2.infected || d3.infected;
+                let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
+                let effectiveDensityThresh = settings['density-threshold'];
 
-                                let color, fillAlpha, lineAlpha;
-                                if (settings.fire) {
-                                    color = inf ? 0xff5064 : (settings.color ? d1.colorHex : 0xb4dcff);
-                                } else if (settings.color) {
-                                    color = inf ? 0xff5064 : d1.colorHex;
-                                } else {
-                                    color = inf ? 0xff5064 : settings.colors.line;
-                                }
+                if (effectiveMaxNeighbors > 0) {
+                    let maxSq = settings.distance ** 2, cell = settings.distance, grid = {};
 
-                                if (settings.fire) {
-                                    fillAlpha = 0.1;
-                                    lineAlpha = op * 3.0;
-                                } else {
-                                    fillAlpha = settings.additive ? op * 0.5 : op * 1.5;
-                                    lineAlpha = op * 2;
-                                    if (!settings.color && !settings.kinetic) {
-                                        fillAlpha = settings.additive ? 0.05 : 0.15;
-                                        lineAlpha = settings.additive ? 0.15 : 0.3;
+                    // Add moving particles into spatial grid
+                    diamonds.forEach((d, i) => {
+                        let k = Math.floor(d.x / cell) + ',' + Math.floor(d.y / cell);
+                        if (!grid[k]) grid[k] = [];
+                        // Store as object { type: 'd', index: i }
+                        grid[k].push({ type: 'd', index: i });
+                    });
+
+                    // Add painted static nodes into spatial grid
+                    paintedNodes.forEach((p, i) => {
+                        let k = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
+                        if (!grid[k]) grid[k] = [];
+                        // Store as object { type: 'p', index: i }
+                        grid[k].push({ type: 'p', index: i });
+                    });
+
+                    diamonds.forEach((d1, i) => {
+                        let gx = Math.floor(d1.x / cell), gy = Math.floor(d1.y / cell), neighbors = [];
+                        if ((grid[gx + ',' + gy] || []).length > effectiveDensityThresh) return;
+
+                        for (let x = gx - 1; x <= gx + 1; x++) for (let y = gy - 1; y <= gy + 1; y++) {
+                            (grid[x + ',' + y] || []).forEach(nodeRef => {
+                                if (nodeRef.type === 'd' && nodeRef.index <= i) return; // Avoid double checking diamonds
+
+                                let otherNode = nodeRef.type === 'd' ? diamonds[nodeRef.index] : paintedNodes[nodeRef.index];
+                                let dx = d1.x - otherNode.x;
+                                let dy = d1.y - otherNode.y;
+                                let dSq = dx * dx + dy * dy;
+
+                                if (dSq < maxSq) {
+                                    neighbors.push({ nodeRef, dSq, otherNode });
+                                    if (settings.virus && nodeRef.type === 'd' && dSq < maxSq * 0.4 && Math.random() > 0.98) {
+                                        if (d1.infected) diamonds[nodeRef.index].infected = true;
+                                        else if (diamonds[nodeRef.index].infected) d1.infected = true;
                                     }
                                 }
+                            });
+                        }
 
-                                let symCount = settings.symmetry === 1 ? 1 : (settings.symmetry === 2 ? 4 : 8);
-                                let angleStep = (Math.PI * 2) / symCount;
+                        let closestNeighbors = neighbors.sort((a, b) => a.dSq - b.dSq).slice(0, effectiveMaxNeighbors);
 
-                                for (let s = 0; s < symCount; s++) {
-                                    let theta = angleStep * s;
+                        closestNeighbors.forEach((n1, idx) => {
+                            closestNeighbors.slice(idx + 1).forEach(n2 => {
+                                let d2 = n1.otherNode, d3 = n2.otherNode, d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
+                                if (d23Sq < maxSq) {
+                                    let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
+                                    let op = (1 - (distMax / settings.distance)) * 0.4;
+                                    if (settings.additive) op *= 0.3;
 
-                                    const rot = (px, py) => {
-                                        let rx = px - centerX;
-                                        let ry = py - centerY;
-                                        return {
-                                            x: centerX + rx * Math.cos(theta) - ry * Math.sin(theta),
-                                            y: centerY + rx * Math.sin(theta) + ry * Math.cos(theta)
+                                    // Default glow to 1.0 for painted nodes, otherwise use diamond glow
+                                    let d1Glow = d1.glow || 1.0;
+                                    let d2Glow = d2.glow || 1.0;
+                                    let d3Glow = d3.glow || 1.0;
+                                    if (settings.kinetic) op *= (0.02 + 0.98 * (d1Glow + d2Glow + d3Glow) / 3);
+
+                                    let inf = d1.infected || d2.infected || d3.infected;
+
+                                    let color, fillAlpha, lineAlpha;
+                                    if (settings.fire) {
+                                        color = inf ? 0xff5064 : (settings.color ? d1.colorHex : 0xb4dcff);
+                                    } else if (settings.color) {
+                                        color = inf ? 0xff5064 : d1.colorHex;
+                                    } else {
+                                        color = inf ? 0xff5064 : settings.colors.line;
+                                    }
+
+                                    if (settings.fire) {
+                                        fillAlpha = 0.1;
+                                        lineAlpha = op * 3.0;
+                                    } else {
+                                        fillAlpha = settings.additive ? op * 0.5 : op * 1.5;
+                                        lineAlpha = op * 2;
+                                        if (!settings.color && !settings.kinetic) {
+                                            fillAlpha = settings.additive ? 0.05 : 0.15;
+                                            lineAlpha = settings.additive ? 0.15 : 0.3;
+                                        }
+                                    }
+
+                                    let symCount = settings.symmetry === 1 ? 1 : (settings.symmetry === 2 ? 4 : 8);
+                                    let angleStep = (Math.PI * 2) / symCount;
+
+                                    for (let s = 0; s < symCount; s++) {
+                                        let theta = angleStep * s;
+
+                                        const rot = (px, py) => {
+                                            let rx = px - centerX;
+                                            let ry = py - centerY;
+                                            return {
+                                                x: centerX + rx * Math.cos(theta) - ry * Math.sin(theta),
+                                                y: centerY + rx * Math.sin(theta) + ry * Math.cos(theta)
+                                            };
                                         };
-                                    };
 
-                                    let p1 = rot(d1.x, d1.y);
-                                    let p2 = rot(d2.x, d2.y);
-                                    let p3 = rot(d3.x, d3.y);
+                                        let p1 = rot(d1.x, d1.y);
+                                        let p2 = rot(d2.x, d2.y);
+                                        let p3 = rot(d3.x, d3.y);
 
-                                    if (settings.fill) {
-                                        let fillColor = settings.color ? color : settings.colors.fill;
-                                        webGraphics.beginFill(fillColor, fillAlpha);
+                                        if (settings.fill) {
+                                            let fillColor = settings.color ? color : settings.colors.fill;
+                                            webGraphics.beginFill(fillColor, fillAlpha);
+                                            webGraphics.moveTo(p1.x, p1.y);
+                                            webGraphics.lineTo(p2.x, p2.y);
+                                            webGraphics.lineTo(p3.x, p3.y);
+                                            webGraphics.endFill();
+                                        }
+                                        webGraphics.lineStyle(0.5, color, lineAlpha);
                                         webGraphics.moveTo(p1.x, p1.y);
                                         webGraphics.lineTo(p2.x, p2.y);
                                         webGraphics.lineTo(p3.x, p3.y);
-                                        webGraphics.endFill();
+                                        webGraphics.lineTo(p1.x, p1.y);
                                     }
-                                    webGraphics.lineStyle(0.5, color, lineAlpha);
-                                    webGraphics.moveTo(p1.x, p1.y);
-                                    webGraphics.lineTo(p2.x, p2.y);
-                                    webGraphics.lineTo(p3.x, p3.y);
-                                    webGraphics.lineTo(p1.x, p1.y);
                                 }
-                            }
+                            });
                         });
                     });
-                });
-            }
-
-            shockwaveGraphics.clear();
-            shockwaves = shockwaves.filter(sw => {
-                sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
-
-                if (settings.chromatic) {
-                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0xff0000, sw.opacity); shockwaveGraphics.drawCircle(sw.x - 4, sw.y, sw.radius);
-                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x0064ff, sw.opacity); shockwaveGraphics.drawCircle(sw.x + 4, sw.y, sw.radius);
-                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x00ff00, sw.opacity); shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
-                } else {
-                    shockwaveGraphics.lineStyle(4 * sw.opacity, sw.infected ? 0xff3232 : 0xb4dcff, sw.opacity);
-                    shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
                 }
-                return sw.opacity > 0;
-            });
-        });
 
-        updateFilters();
-        updatePickerState();
-        updateBackgroundColor();
-        adjustSwarmDensity();
-    </script>
+                shockwaveGraphics.clear();
+                shockwaves = shockwaves.filter(sw => {
+                    sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
+
+                    if (settings.chromatic) {
+                        shockwaveGraphics.lineStyle(4 * sw.opacity, 0xff0000, sw.opacity); shockwaveGraphics.drawCircle(sw.x - 4, sw.y, sw.radius);
+                        shockwaveGraphics.lineStyle(4 * sw.opacity, 0x0064ff, sw.opacity); shockwaveGraphics.drawCircle(sw.x + 4, sw.y, sw.radius);
+                        shockwaveGraphics.lineStyle(4 * sw.opacity, 0x00ff00, sw.opacity); shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
+                    } else {
+                        shockwaveGraphics.lineStyle(4 * sw.opacity, sw.infected ? 0xff3232 : 0xb4dcff, sw.opacity);
+                        shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
+                    }
+                    return sw.opacity > 0;
+                });
+            });
+
+            updateFilters();
+            updatePickerState();
+            updateBackgroundColor();
+            adjustSwarmDensity();
+        </script>
 </body>
 
 </html>
