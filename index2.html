@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Freakin Fractals - Spaghetti Dynamics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-filters@5.2.1/dist/pixi-filters.js"></script>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d0d14;
+            /* Deep, dark warm background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(25, 20, 20, 0.85);
+            border: 1px solid rgba(255, 150, 50, 0.3);
+            border-radius: 8px;
+            padding: 0;
+            color: #ffecd2;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9), 0 0 10px rgba(255, 100, 0, 0.2);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            width: 320px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        #ui-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: rgba(255, 150, 50, 0.05);
+            border-bottom: 1px solid rgba(255, 150, 50, 0.1);
+        }
+
+        #ui-content {
+            padding: 15px 20px 20px 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        #ui-panel.minimized {
+            width: 180px;
+            opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+
+        #ui-panel.minimized:hover {
+            opacity: 1.0;
+        }
+
+        #ui-panel.minimized #ui-header {
+            padding: 10px 15px;
+            border-bottom: none;
+        }
+
+        #ui-panel.minimized h2 {
+            font-size: 0.9rem;
+        }
+
+        #ui-panel.minimized #ui-content {
+            max-height: 0;
+            padding-bottom: 0;
+            padding-top: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #min-btn {
+            font-size: 1rem;
+            color: #ffb84d;
+            font-weight: bold;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: #fff3e0;
+            text-shadow: 0 0 8px rgba(255, 150, 50, 0.5);
+        }
+
+        h3 {
+            margin: 15px 0 10px 0;
+            font-size: 0.85rem;
+            color: #ffb84d;
+            border-bottom: 1px solid rgba(255, 180, 80, 0.3);
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            color: #ffdcb3;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #ff9900;
+        }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: #ff9900;
+            width: 16px;
+            height: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: rgba(255, 150, 50, 0.15);
+            border: 1px solid #ff9900;
+            color: #ffdcb3;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-shadow: 0 0 5px rgba(255, 150, 50, 0.5);
+        }
+
+        button:hover {
+            background: rgba(255, 150, 50, 0.3);
+            box-shadow: 0 0 10px rgba(255, 150, 50, 0.4);
+        }
+
+        button:active {
+            background: rgba(255, 150, 50, 0.5);
+        }
+
+        #fps-counter {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+
+        .tip {
+            font-size: 0.75rem;
+            color: #aaaaaa;
+            font-style: italic;
+            margin-top: -5px;
+            margin-bottom: 15px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-panel">
+        <div id="ui-header">
+            <h2>Spaghetti Dynamics</h2>
+            <div id="min-btn">✕</div>
+        </div>
+
+        <div id="ui-content">
+            <div class="control-group">
+                <label>FPS: <span id="fps-counter">--</span></label>
+            </div>
+            <span class="tip">Click anywhere to drop a meatball! Swish the mouse to move noodles.</span>
+
+            <h3>Physics Engine</h3>
+            <div class="control-group">
+                <label for="friction">Noodle Slide (Friction): <span id="friction-val">0.99</span></label>
+                <input type="range" id="friction" min="0.80" max="0.999" step="0.001" value="0.99">
+            </div>
+            <div class="control-group">
+                <label for="noodle-stiffness">Noodle Stiffness: <span id="noodle-stiffness-val">3</span></label>
+                <input type="range" id="noodle-stiffness" min="1" max="10" step="1" value="3">
+            </div>
+            <div class="control-group">
+                <label for="noodle-gravity">Noodle Gravity: <span id="noodle-gravity-val">0.05</span></label>
+                <input type="range" id="noodle-gravity" min="-0.2" max="0.5" step="0.01" value="0.05">
+            </div>
+            <div class="control-group">
+                <label for="meatball-gravity">Meatball Gravity: <span id="meatball-gravity-val">0.6</span></label>
+                <input type="range" id="meatball-gravity" min="0.1" max="2.0" step="0.1" value="0.6">
+            </div>
+
+            <h3>Interactive Forces</h3>
+            <div class="control-group">
+                <label for="swish-force">Cursor Swish Force: <span id="swish-force-val">12</span></label>
+                <input type="range" id="swish-force" min="0" max="30" step="1" value="12">
+            </div>
+            <div class="control-group">
+                <label for="swish-radius">Cursor Radius: <span id="swish-radius-val">120</span></label>
+                <input type="range" id="swish-radius" min="40" max="300" step="10" value="120">
+            </div>
+            <div class="control-group">
+                <label for="meatball-size">Meatball Size: <span id="meatball-size-val">60</span></label>
+                <input type="range" id="meatball-size" min="20" max="150" step="5" value="60">
+            </div>
+
+            <h3>Visuals</h3>
+            <div class="control-group">
+                <label for="noodle-thickness">Noodle Thickness: <span id="noodle-thickness-val">12</span></label>
+                <input type="range" id="noodle-thickness" min="2" max="30" step="1" value="12">
+            </div>
+            <div class="control-group">
+                <label for="boil-speed">Boiling Noise Speed: <span id="boil-speed-val">0.02</span></label>
+                <input type="range" id="boil-speed" min="0" max="0.1" step="0.005" value="0.02">
+            </div>
+            <div class="control-group">
+                <label for="boil-force">Boiling Intensity: <span id="boil-force-val">0.8</span></label>
+                <input type="range" id="boil-force" min="0" max="5.0" step="0.1" value="0.8">
+            </div>
+            <div class="control-group">
+                <label for="glow-toggle" style="color:#ffcc00;">Luminous Bloom: <input type="checkbox" id="glow-toggle"
+                        checked></label>
+            </div>
+            <div class="control-group">
+                <label for="curl-strength">Curl Noise Force: <span id="curl-strength-val">0.5</span></label>
+                <input type="range" id="curl-strength" min="0" max="2.0" step="0.1" value="0.5">
+            </div>
+            <div class="control-group">
+                <label for="rope-taper">Ribbon Taper: <span id="rope-taper-val">0.5</span></label>
+                <input type="range" id="rope-taper" min="0" max="1.0" step="0.1" value="0.5">
+            </div>
+
+            <button id="reset-btn">Throw New Pasta</button>
+            <button id="clear-meatballs-btn"
+                style="border-color: #883333; color: #ff8888; background: rgba(136, 51, 51, 0.2);">Clear
+                Meatballs</button>
+        </div>
+    </div>
+
+    <script>
+        const app = new PIXI.Application({
+            resizeTo: window,
+            backgroundColor: 0x0a0502,
+            antialias: true,
+            resolution: window.devicePixelRatio || 1,
+            autoDensity: true
+        });
+        document.body.appendChild(app.view);
+        startApp();
+
+        async function startApp() {
+            // Re-wrapping previous init into a safe async start
+            // This ensures app is ready before creating textures
+            fpsCounter = document.getElementById('fps-counter');
+            initContainers();
+
+            initFilters();
+            initTextures();
+            initSpaghetti();
+
+            app.ticker.add(updateLoop);
+        }
+
+        let mainStage, noodleContainer, meatballContainer, solidNoodleContainer, sauceContainer;
+
+        function initContainers() {
+            mainStage = new PIXI.Container();
+            noodleContainer = new PIXI.Container();
+            meatballContainer = new PIXI.Container();
+            solidNoodleContainer = new PIXI.Container();
+            sauceContainer = new PIXI.Container();
+
+            app.stage.addChild(mainStage);
+            mainStage.addChild(meatballContainer);
+            mainStage.addChild(noodleContainer);
+
+            noodleContainer.addChild(sauceContainer);
+            noodleContainer.addChild(solidNoodleContainer);
+        }
+
+
+        let spiritTexture, meatballTexture;
+        let noodlesGlowG;
+        let time = 0;
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fpsCounter; // initialized in startApp
+
+        function initTextures() {
+            // Rope texture creation
+            const ropeCanvas = document.createElement('canvas');
+            ropeCanvas.width = 128;
+            ropeCanvas.height = 128;
+            const ropeCtx = ropeCanvas.getContext('2d');
+
+            // Create a tapered/gradient look in the texture itself
+            const rGrad = ropeCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            rGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            rGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.5)');
+            rGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ropeCtx.fillStyle = rGrad;
+            ropeCtx.fillRect(0, 0, 128, 128);
+            spiritTexture = PIXI.Texture.from(ropeCanvas);
+
+            meatballTexture = createTexturedMeatball();
+        }
+
+        function initFilters() {
+            // Safe filter init
+            try {
+                let filterClass = (typeof DropShadowFilter !== 'undefined') ? DropShadowFilter :
+                    (PIXI.filters && PIXI.filters.DropShadowFilter) ? PIXI.filters.DropShadowFilter : null;
+
+                if (filterClass) {
+                    const globalShadow = new filterClass({
+                        distance: 12,
+                        blur: 8,
+                        alpha: 0.75,
+                        color: 0x000000,
+                        quality: 4,
+                        resolution: window.devicePixelRatio || 1
+                    });
+                    globalShadow.padding = 40;
+                    solidNoodleContainer.filters = [globalShadow];
+                    meatballContainer.filters = [globalShadow];
+                }
+            } catch (e) { console.warn("Shadow filters failed", e); }
+
+            const sauceBlur = new PIXI.BlurFilter();
+            sauceBlur.blur = 15;
+            const sauceColor = new PIXI.ColorMatrixFilter();
+            sauceColor.saturate(1.5, false);
+
+            noodlesGlowG = new PIXI.Graphics();
+            noodlesGlowG.filters = [sauceBlur, sauceColor];
+            noodlesGlowG.alpha = 0.5;
+            sauceContainer.addChild(noodlesGlowG);
+        }
+
+        // Settings State
+        const settings = {
+            friction: 0.98,
+            stiffness: 4,
+            noodleGravity: 0.02,
+            meatballGravity: 0.4,
+            swishForce: 15,
+            swishRadius: 150,
+            meatballSize: 60,
+            noodleThickness: 8,
+            boilSpeed: 0.01,
+            boilForce: 0.2,
+            curlStrength: 0.5,
+            ropeTaper: 0.5,
+            glow: true
+        };
+
+        // UI Binding
+        const uiPanel = document.getElementById('ui-panel');
+        document.getElementById('ui-header').addEventListener('click', () => uiPanel.classList.toggle('minimized'));
+
+        const sliders = ['friction', 'noodle-stiffness', 'noodle-gravity', 'meatball-gravity', 'swish-force', 'swish-radius', 'meatball-size', 'noodle-thickness', 'boil-speed', 'boil-force', 'curl-strength', 'rope-taper'];
+        sliders.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const valEl = document.getElementById(`${id}-val`);
+            el.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (valEl) valEl.innerText = val;
+
+                if (id === 'noodle-stiffness') settings.stiffness = parseInt(val);
+                else if (id === 'noodle-gravity') settings.noodleGravity = val;
+                else if (id === 'meatball-gravity') settings.meatballGravity = val;
+                else if (id === 'swish-force') settings.swishForce = val;
+                else if (id === 'swish-radius') settings.swishRadius = val;
+                else if (id === 'meatball-size') settings.meatballSize = val;
+                else if (id === 'noodle-thickness') settings.noodleThickness = parseInt(val);
+                else if (id === 'boil-speed') settings.boilSpeed = val;
+                else if (id === 'boil-force') settings.boilForce = val;
+                else if (id === 'friction') settings.friction = val;
+                else if (id === 'curl-strength') settings.curlStrength = val;
+                else if (id === 'rope-taper') settings.ropeTaper = val;
+            });
+        });
+
+        document.getElementById('glow-toggle').addEventListener('change', (e) => {
+            settings.glow = e.target.checked;
+            noodlesGlowG.visible = settings.glow;
+        });
+
+        document.getElementById('clear-meatballs-btn').addEventListener('click', () => {
+            meatballs.forEach(mb => {
+                meatballContainer.removeChild(mb.sprite);
+                mb.sprite.destroy();
+            });
+            meatballs = [];
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', initSpaghetti);
+
+
+        // --- Physics Engine ---
+
+        class Point {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.oldx = x;
+                this.oldy = y;
+                this.pinned = false; // Usually true for anchor points, but we want fully loose noodles
+                // Individual slight offset for noise
+                this.noiseOffsetX = Math.random() * 1000;
+                this.noiseOffsetY = Math.random() * 1000;
+            }
+        }
+
+        class Constraint {
+            constructor(p0, p1, length) {
+                this.p0 = p0;
+                this.p1 = p1;
+                this.length = length;
+            }
+            resolve() {
+                let dx = this.p1.x - this.p0.x;
+                let dy = this.p1.y - this.p0.y;
+                let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                let diff = (this.length - dist) / dist;
+
+                // Adjust by half the difference
+                let offsetX = dx * diff * 0.5;
+                let offsetY = dy * diff * 0.5;
+
+                if (!this.p0.pinned) {
+                    this.p0.x -= offsetX;
+                    this.p0.y -= offsetY;
+                }
+                if (!this.p1.pinned) {
+                    this.p1.x += offsetX;
+                    this.p1.y += offsetY;
+                }
+            }
+        }
+
+        class Noodle {
+            constructor(x, y, length, pointsCount, color) {
+                this.points = [];
+                this.constraints = [];
+                this.color = color;
+
+                let segmentLength = length / pointsCount;
+                let angle = Math.random() * Math.PI * 2;
+
+                for (let i = 0; i < pointsCount; i++) {
+                    angle += (Math.random() - 0.5) * 0.2;
+                    let px = x + Math.cos(angle) * segmentLength * i;
+                    let py = y + Math.sin(angle) * segmentLength * i;
+                    this.points.push(new Point(px, py));
+                }
+
+                for (let i = 0; i < pointsCount - 1; i++) {
+                    this.constraints.push(new Constraint(this.points[i], this.points[i + 1], segmentLength));
+                }
+
+                // Ribbon rendering
+                this.rope = new PIXI.SimpleRope(spiritTexture, this.points.map(p => new PIXI.Point(p.x, p.y)));
+                this.rope.tint = color;
+
+                // Safe blend mode
+                try {
+                    this.rope.blendMode = PIXI.BLEND_MODES.ADD || 'add';
+                } catch (e) {
+                    this.rope.blendMode = 'add';
+                }
+
+                this.rope.alpha = 0.7;
+                solidNoodleContainer.addChild(this.rope);
+            }
+
+            updateRope() {
+                const count = this.points.length;
+                const taper = settings.ropeTaper;
+
+                for (let i = 0; i < count; i++) {
+                    this.rope.points[i].x = this.points[i].x;
+                    this.rope.points[i].y = this.points[i].y;
+
+                    // Visual tapering trick: we can't easily change width per point in SimpleRope,
+                    // but we can simulate intensity or alpha if needed. 
+                    // Tapering index: 0 is head, count-1 is tail.
+                }
+
+                // Head/Tail transparency tapering
+                this.rope.alpha = 0.4 + (1.0 - taper) * 0.6;
+            }
+        }
+
+        let noodles = [];
+        let points = [];
+        let constraints = [];
+        let meatballs = [];
+
+        const spiritColors = [
+            0x00ffff, // Cyan
+            0xff00ff, // Magenta
+            0xffff00, // Yellow/Gold
+            0x00ff88, // Seafoam
+            0x8800ff, // Purple
+            0xff8800  // Orange
+        ];
+
+        function initSpaghetti() {
+            // Remove old ropes from container
+            noodles.forEach(n => solidNoodleContainer.removeChild(n.rope));
+
+            noodles = [];
+            points = [];
+            constraints = [];
+
+            const numNoodles = 120;
+            const pointsPerNoodle = 35;
+            const noodleLength = Math.max(window.innerWidth, window.innerHeight) * 0.5;
+
+            for (let i = 0; i < numNoodles; i++) {
+                let startX = Math.random() * window.innerWidth;
+                let startY = Math.random() * window.innerHeight;
+
+                let color = spiritColors[Math.floor(Math.random() * spiritColors.length)];
+                let noodle = new Noodle(startX, startY, noodleLength, pointsPerNoodle, color);
+                noodles.push(noodle);
+
+                points.push(...noodle.points);
+                constraints.push(...noodle.constraints);
+            }
+        }
+
+        function updateTintBrightness(color, factor) {
+            let r = (color >> 16) & 0xFF;
+            let g = (color >> 8) & 0xFF;
+            let b = color & 0xFF;
+
+            if (factor < 0) {
+                let f = 1 + factor;
+                r = Math.max(0, r * f); g = Math.max(0, g * f); b = Math.max(0, b * f);
+            } else {
+                r = Math.min(255, r + (255 - r) * factor);
+                g = Math.min(255, g + (255 - g) * factor);
+                b = Math.min(255, b + (255 - b) * factor);
+            }
+            return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+        }
+
+        // --- Interaction ---
+
+        let mouse = { x: -1000, y: -1000, vx: 0, vy: 0, oldx: -1000, oldy: -1000, isDown: false };
+
+        // Track mouse/touch
+        app.stage.eventMode = 'dynamic';
+        app.stage.hitArea = new PIXI.Rectangle(-10000, -10000, 20000, 20000); // Massive hit area
+
+        function updateMouseState(e) {
+            let p = e.data.global;
+            mouse.oldx = mouse.x;
+            mouse.oldy = mouse.y;
+            mouse.x = p.x;
+            mouse.y = p.y;
+
+            // Calculate velocity of swish
+            mouse.vx = mouse.x - mouse.oldx;
+            mouse.vy = mouse.y - mouse.oldy;
+
+            // Cap swish velocity to avoid explosion
+            let speed = Math.sqrt(mouse.vx * mouse.vx + mouse.vy * mouse.vy);
+            if (speed > 150) {
+                mouse.vx = (mouse.vx / speed) * 150;
+                mouse.vy = (mouse.vy / speed) * 150;
+            }
+        }
+
+        app.stage.on('pointermove', updateMouseState);
+
+        app.stage.on('pointerdown', (e) => {
+            updateMouseState(e);
+            mouse.isDown = true;
+
+            // Avoid dropping meatball if clicking on UI
+            let p = e.data.global;
+            let bounds = uiPanel.getBoundingClientRect();
+            if (p.x >= bounds.left && p.x <= bounds.right && p.y >= bounds.top && p.y <= bounds.bottom) {
+                return;
+            }
+
+            dropMeatball(p.x, p.y);
+        });
+
+        app.stage.on('pointerup', () => { mouse.isDown = false; });
+        app.stage.on('pointerupoutside', () => { mouse.isDown = false; });
+
+        // --- Meatball ---
+
+
+        function createTexturedMeatball() {
+            // Generates a rich procedural meatball texture to map onto sprites
+            let canvas = document.createElement('canvas');
+            canvas.width = 120;
+            canvas.height = 120;
+            let ctx = canvas.getContext('2d');
+
+            // Base dark red-brown
+            ctx.fillStyle = '#4c261e';
+            ctx.beginPath();
+            ctx.arc(60, 60, 58, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Noise texture
+            for (let i = 0; i < 400; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(40,15,10,0.6)' : 'rgba(100,60,40,0.4)';
+                ctx.beginPath();
+                ctx.arc(20 + Math.random() * 80, 20 + Math.random() * 80, Math.random() * 4 + 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Highlights (3D Sphere shading)
+            let grad = ctx.createRadialGradient(40, 40, 5, 50, 50, 70);
+            grad.addColorStop(0, 'rgba(255,255,255,0.4)');
+            grad.addColorStop(0.3, 'rgba(255,255,255,0.1)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.7)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(60, 60, 58, 0, Math.PI * 2);
+            ctx.fill();
+
+            return PIXI.Texture.from(canvas);
+        }
+
+        function dropMeatball(x, y) {
+            let size = settings.meatballSize;
+
+            let sprite = new PIXI.Sprite(meatballTexture);
+            sprite.anchor.set(0.5);
+            sprite.width = size * 2;
+            sprite.height = size * 2;
+            sprite.x = x;
+            sprite.y = y;
+            meatballContainer.addChild(sprite);
+
+            meatballs.push({
+                x: x,
+                y: y,
+                vx: 0,
+                vy: window.innerHeight * 0.05, // start with some downward speed
+                radius: size,
+                sprite: sprite,
+                mass: size * 2
+            });
+        }
+
+        // --- Pseudo-Simplex/Fluid Noise ---
+        // A very fast, good enough 2D noise generation using sine waves and time
+        function fluidNoise(x, y, t) {
+            return {
+                x: Math.sin(x * 0.005 + t) * Math.cos(y * 0.003 - t) * 2 - Math.sin(y * 0.01 + t),
+                y: Math.cos(x * 0.004 - t) * Math.sin(y * 0.006 + t) * 2 + Math.cos(x * 0.01 - t)
+            };
+        }
+
+
+        function updateLoop() {
+            let dtFixed = 1;
+            time += settings.boilSpeed;
+
+            let now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 500) {
+                fpsCounter.innerText = Math.round((frameCount * 1000) / (now - lastTime));
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            let W = window.innerWidth;
+            let H = window.innerHeight;
+
+            // 1. Meatball Physics
+            for (let i = meatballs.length - 1; i >= 0; i--) {
+                let mb = meatballs[i];
+                mb.vy += settings.meatballGravity * dtFixed;
+                mb.y += mb.vy;
+                mb.x += mb.vx;
+                mb.sprite.x = mb.x;
+                mb.sprite.y = mb.y;
+                mb.sprite.rotation += mb.vx * 0.02;
+
+                if (mb.x < mb.radius) { mb.x = mb.radius; mb.vx *= -0.8; }
+                if (mb.x > W - mb.radius) { mb.x = W - mb.radius; mb.vx *= -0.8; }
+
+                if (mb.y > H + mb.radius * 2) {
+                    meatballContainer.removeChild(mb.sprite);
+                    mb.sprite.destroy();
+                    meatballs.splice(i, 1);
+                }
+            }
+
+            // 2. Points Verlet Integration & Forces
+            const R_swish = settings.swishRadius;
+            const R_swish2 = R_swish * R_swish;
+
+            for (let i = 0; i < points.length; i++) {
+                let p = points[i];
+                if (p.pinned) continue;
+
+                let vx = (p.x - p.oldx) * settings.friction;
+                let vy = (p.y - p.oldy) * settings.friction;
+
+                p.oldx = p.x;
+                p.oldy = p.y;
+
+                vy += settings.noodleGravity * dtFixed;
+                if (settings.curlStrength > 0) {
+                    const c = curlNoise(p.x * 0.002, p.y * 0.002, time * 0.5);
+                    vx += c.x * settings.curlStrength;
+                    vy += c.y * settings.curlStrength;
+                }
+
+                p.x += vx * dtFixed;
+                p.y += vy * dtFixed;
+
+                if (mouse.vx !== 0 || mouse.vy !== 0) {
+                    let dx = p.x - mouse.x;
+                    let dy = p.y - mouse.y;
+                    let dist2 = dx * dx + dy * dy;
+                    if (dist2 < R_swish2) {
+                        let dist = Math.sqrt(dist2) || 1;
+                        let force = (R_swish - dist) / R_swish;
+                        p.x += (dx / dist) * force * settings.swishForce * 0.5;
+                        p.y += (dy / dist) * force * settings.swishForce * 0.5;
+                        p.x += mouse.vx * force * (settings.swishForce / 12) * 0.8;
+                        p.y += mouse.vy * force * (settings.swishForce / 12) * 0.8;
+                    }
+                }
+
+                for (let j = 0; j < meatballs.length; j++) {
+                    let mb = meatballs[j];
+                    let dx = p.x - mb.x;
+                    let dy = p.y - mb.y;
+                    let dist2 = dx * dx + dy * dy;
+                    let sumR = mb.radius + (settings.noodleThickness / 2);
+
+                    if (dist2 < sumR * sumR) {
+                        let dist = Math.sqrt(dist2) || 1;
+                        let overlap = sumR - dist;
+                        let pushX = (dx / dist) * overlap;
+                        let pushY = (dy / dist) * overlap;
+                        p.x += pushX;
+                        p.y += pushY;
+                        p.y += mb.vy * 0.3;
+                        mb.vy *= 0.999;
+                        mb.vx -= pushX * 0.005;
+                    }
+                }
+
+                if (p.x < 0) { p.x = 0; p.oldx = p.x + vx * 0.5; }
+                if (p.x > W) { p.x = W; p.oldx = p.x + vx * 0.5; }
+                if (p.y > H) { p.y = H; p.oldy = p.y + vy * 0.8; }
+                if (p.y < -100) { p.y = -100; p.oldy = p.y + vy * 0.8; }
+            }
+
+            for (let iter = 0; iter < settings.stiffness; iter++) {
+                for (let i = 0; i < constraints.length; i++) {
+                    constraints[i].resolve();
+                }
+            }
+
+            renderNoodles();
+
+            mouse.vx *= 0.8;
+            mouse.vy *= 0.8;
+        }
+
+        function renderNoodles() {
+            for (let i = 0; i < noodles.length; i++) {
+                noodles[i].updateRope();
+            }
+        }
+
+        // Noise implementation simplified for performance
+        const noise = {
+            perlin: (x, y, z) => {
+                return (Math.sin(x * 1.5) + Math.cos(y * 1.5) + Math.sin(z * 1.2)) * 0.5;
+            }
+        };
+
+        function curlNoise(x, y, z) {
+            const eps = 0.1;
+            const n1 = noise.perlin(x, y + eps, z);
+            const n2 = noise.perlin(x, y - eps, z);
+            const n3 = noise.perlin(x + eps, y, z);
+            const n4 = noise.perlin(x - eps, y, z);
+            return {
+                x: (n1 - n2) / (2 * eps),
+                y: -(n3 - n4) / (2 * eps)
+            };
+        }
+
+
+    </script>
+</body>
+
+</html>
