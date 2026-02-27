@@ -341,7 +341,8 @@
             <div id="renderer-pill-knob"></div>
         </div>
         <span id="renderer-label">WebGL</span>
-        <span id="renderer-badge">renderer</span>
+        <span id="fps-counter" style="font-size: 0.75rem; font-weight: bold; margin-left: 5px; color: #ffaa00;">--
+            FPS</span>
     </div>
 
     <div id="ui-panel">
@@ -365,9 +366,6 @@
             </div>
 
             <h3>Performance</h3>
-            <div class="control-group">
-                <label>Real-time FPS: <span id="fps-counter">--</span></label>
-            </div>
             <div class="control-group">
                 <label>Active Engine: <span id="renderer-info"
                         style="color: #ffbb00; font-weight: bold;">detecting...</span></label>
@@ -3030,7 +3028,7 @@
                         frames++; animationTime += 0.01;
                         let now = performance.now();
                         if (now > lastFpsUpdate + 500) {
-                            document.getElementById('fps-counter').textContent = Math.round((frames * 1000) / (now - lastFpsUpdate));
+                            document.getElementById('fps-counter').textContent = Math.round((frames * 1000) / (now - lastFpsUpdate)) + " FPS";
                             frames = 0; lastFpsUpdate = now;
                         }
 
