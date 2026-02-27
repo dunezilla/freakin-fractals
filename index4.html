@@ -647,11 +647,13 @@
         varying vec3 vViewPosition;
         varying float vSpeed;
         varying vec3 vWorldPos;
+        varying vec3 vLocalPos;
         
         uniform float uVoxelWidth;
         uniform float uVoxelLength;
 
         void main() {
+            vLocalPos = position;
             // Calculate UV based on instance ID
             float id = float(gl_InstanceID);
             vec2 uv = vec2(
@@ -694,6 +696,7 @@
         varying vec3 vViewPosition;
         varying float vSpeed;
         varying vec3 vWorldPos;
+        varying vec3 vLocalPos;
 
         uniform vec3 lightDir;
         uniform vec3 cloudColor;
@@ -746,13 +749,24 @@
 
             // Subtle depth fading
             float depthFade = clamp(1.0 - (vViewPosition.z - 1200.0) / 1000.0, 0.0, 1.0);
-            
+
             // Scaled alpha
             float alpha = clamp(uOpacity + (vSpeed * 0.1), 0.0, 1.0) * depthFade;
             
+            // Soft Fuzzy Edges (Cotton Ball Effect via Fresnel)
+            vec3 viewDir = normalize(vViewPosition);
+            float rim = abs(dot(normal, viewDir));
+            float softEdge = smoothstep(0.0, 0.6, rim);
+            
+            // Boost alpha slightly to compensate for fuzzy loss, apply mask
+            alpha = clamp(alpha * softEdge * 1.5, 0.0, 1.0);
+
             // Scale alpha by supernova for additive softness
             alpha *= (uSupernova > 0.0 ? uSupernova : 1.0);
             
+            // Prevent completely invisible particles from rendering to save overdraw
+            if (alpha < 0.01) discard;
+
             gl_FragColor = vec4(finalColor, alpha);
         }
     </script>
@@ -836,8 +850,8 @@
         const numClusters = 140;
         const clusters = [];
 
-        // Distribute towers across the horizontal range
-        for (let i = 0; i < 40; i++) {
+        // Distribute towers across the horizontal range, creating distinct clumps
+        for (let i = 0; i < 18; i++) {
             const baseX = (Math.random() - 0.5) * 6000;
             const baseZ = (Math.random() - 0.5) * 1500;
             const numSegments = 3 + Math.floor(Math.random() * 5);
@@ -851,16 +865,17 @@
                     radius: (j === 0) ? 400 : 350 - (j * 40) // Wider base, tapering top
                 });
             }
-        }
 
-        // Add some smaller "cauliflower" bumps around the sides
-        for (let i = 0; i < 60; i++) {
-            clusters.push({
-                x: (Math.random() - 0.5) * 6000,
-                y: -100 + (Math.random() - 0.5) * 600,
-                z: (Math.random() - 0.5) * 1500,
-                radius: 100 + Math.random() * 200
-            });
+            // Anchor 3-5 smaller "cauliflower" side-bumps to THIS specific tower base
+            const numBumps = 3 + Math.floor(Math.random() * 3);
+            for (let k = 0; k < numBumps; k++) {
+                clusters.push({
+                    x: baseX + (Math.random() - 0.5) * 600, // Spread around the tower
+                    y: -100 + (Math.random() - 0.5) * 400,  // Lower mid-section bumps
+                    z: baseZ + (Math.random() - 0.5) * 600,
+                    radius: 150 + Math.random() * 200
+                });
+            }
         }
 
         for (let i = 0; i < posArray.length; i += 4) {
@@ -925,7 +940,7 @@
                 uSimSpeed: { value: 0.15 },
                 uNoiseFreq: { value: 0.05 },
                 uNoisePower: { value: 0.4 },
-                uWind: { value: 0.01 },
+                uWind: { value: params.uWind },
                 uMorphFreq: { value: 0.008 },
                 uMorphPower: { value: 80.0 }
             },
@@ -944,7 +959,8 @@
         });
 
         // --- Render Voxel InstancedMesh ---
-        const voxelGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        // Fuzzy Cotton Ball Sphere
+        const voxelGeo = new THREE.IcosahedronGeometry(1.0, 1);
         // Using a basic ShaderMaterial mapping IDs to positions
         const voxelMat = new THREE.ShaderMaterial({
             uniforms: {
@@ -999,7 +1015,14 @@
 
         const contrailPosArray = new Float32Array(CONTRAIL_PARTICLES * 4);
         const contrailVelArray = new Float32Array(CONTRAIL_PARTICLES * 4);
-        for (let i = 0; i < contrailPosArray.length; i += 4) contrailPosArray[i + 3] = 0.0; // Life = 0
+        for (let i = 0; i < contrailPosArray.length; i += 4) {
+            // Push initially far away so we don't see them before they spawn
+            contrailPosArray[i] = 999999.0;
+            contrailPosArray[i + 1] = 999999.0;
+            contrailPosArray[i + 2] = 999999.0;
+            // Stagger life from 0.0 to 1.0 so they spawn continuously over 5 seconds
+            contrailPosArray[i + 3] = Math.random();
+        }
 
         const initialContrailPos = new THREE.DataTexture(contrailPosArray, CONTRAIL_WIDTH, CONTRAIL_WIDTH, THREE.RGBAFormat, THREE.FloatType);
         initialContrailPos.needsUpdate = true;
