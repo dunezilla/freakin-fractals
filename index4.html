@@ -758,8 +758,17 @@
             float rim = abs(dot(normal, viewDir));
             float softEdge = smoothstep(0.0, 0.6, rim);
             
+            // INTRINSIC BLOOM HALO:
+            // Calculate an intensely bright rim on the very outer edge
+            float bloomEdge = smoothstep(0.1, 0.0, rim); // Only the very outer sliver
+            
+            // Add pure glowing white to the outer rim based on uBloomStrength
+            vec3 bloomColor = vec3(1.0, 1.0, 1.0) * bloomEdge * uBloomStrength * 4.0;
+            finalColor += bloomColor;
+
             // Boost alpha slightly to compensate for fuzzy loss, apply mask
-            alpha = clamp(alpha * softEdge * 1.5, 0.0, 1.0);
+            // We also maintain high alpha where the bloom is strongest to ensure it blows out nicely
+            alpha = clamp(alpha * softEdge * 1.5 + (bloomEdge * uBloomStrength), 0.0, 1.0);
 
             // Scale alpha by supernova for additive softness
             alpha *= (uSupernova > 0.0 ? uSupernova : 1.0);
@@ -978,6 +987,7 @@
                 uOpacity: { value: 0.7 },
                 uGlow: { value: 0.15 },
                 uSupernova: { value: 0.8 },
+                uBloomStrength: { value: 0.0 }, // Injected internal bloom
                 uSkyColor: { value: new THREE.Color(0x103060) },
                 uHorizonColor: { value: new THREE.Color(0xe0f0ff) },
                 uSunColor: { value: new THREE.Color(0xffddaa) },
@@ -1172,20 +1182,6 @@
         const ambient = new THREE.AmbientLight(0x202020);
         scene.add(ambient);
 
-        // --- Post-Processing (Bloom) ---
-        const renderScene = new THREE.RenderPass(scene, camera);
-        const bloomPass = new THREE.UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            1.2, // strength
-            0.4, // radius
-            0.2  // threshold
-        );
-
-        const composer = new THREE.EffectComposer(renderer);
-        composer.addPass(renderScene);
-        composer.addPass(bloomPass);
-        composer.setSize(window.innerWidth, window.innerHeight);
-
         // --- Interactive Controller Logic ---
 
         function updateUniforms() {
@@ -1202,10 +1198,8 @@
                         if (velocityMaterial.uniforms[id]) velocityMaterial.uniforms[id].value = params[id];
                         if (voxelMat.uniforms[id]) voxelMat.uniforms[id].value = params[id];
 
-                        // Sync directly to BloomPass
-                        if (id === 'uBloomStrength') bloomPass.strength = params[id];
-                        if (id === 'uBloomRadius') bloomPass.radius = params[id];
-                        if (id === 'uBloomThreshold') bloomPass.threshold = params[id];
+                        // Sync custom bloom uniform
+                        if (id === 'uBloomStrength') voxelMat.uniforms.uBloomStrength.value = params[id];
 
                         // Dynamic Instance Count control
                         if (id === 'uVoxelCount' && instancedMesh) {
@@ -1449,7 +1443,8 @@
 
             contrailMeshMat.uniforms.uSunColor.value.set(params.uSunColor);
 
-            composer.render();
+            // Use Standard Renderer instead of EffectComposer to preserve alpha channel
+            renderer.render(scene, camera);
 
             iter++;
             stats.end();
@@ -1462,7 +1457,6 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
     </script>

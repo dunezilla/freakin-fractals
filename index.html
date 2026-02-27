@@ -137,10 +137,43 @@
         }
 
         input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 36px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9px;
+            position: relative;
             cursor: pointer;
-            accent-color: #88aaff;
-            width: 16px;
-            height: 16px;
+            outline: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: background 0.3s, border-color 0.3s;
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+        input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            transition: left 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type="checkbox"]:checked {
+            background: rgba(136, 170, 255, 0.3);
+            border-color: #88aaff;
+        }
+
+        input[type="checkbox"]:checked::after {
+            left: 20px;
+            background: #88aaff;
+            box-shadow: 0 0 5px #88aaff;
         }
 
         /* Color Picker Styling */
@@ -318,6 +351,19 @@
         </div>
 
         <div id="ui-content">
+            <div id="preset-controls"
+                style="margin-bottom: 20px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <h3 style="margin-top:0; border:none; display:flex; justify-content:space-between; align-items:center;">
+                    Configurations
+                    <button id="save-preset-btn" style="width:auto; margin:0; padding:4px 8px; font-size:0.75rem;">💾
+                        Save</button>
+                </h3>
+                <select id="preset-selector"
+                    style="width: 100%; padding: 6px; background: #1a1f35; color: #fff; border: 1px solid #88aaff; border-radius: 4px; outline: none; margin-top: 5px;">
+                    <option value="">-- Select a Saved Preset --</option>
+                </select>
+            </div>
+
             <h3>Performance</h3>
             <div class="control-group">
                 <label>Real-time FPS: <span id="fps-counter">--</span></label>
@@ -887,6 +933,9 @@
                             accessory: 0xff7700
                         }
                     };
+
+                    // Capture factory default snapshot for immediate reset
+                    const FACTORY_DEFAULTS = JSON.parse(JSON.stringify(settings));
 
                     const panel = document.getElementById('ui-panel');
                     document.getElementById('ui-header').addEventListener('click', () => panel.classList.toggle('minimized'));
@@ -1901,8 +1950,91 @@
                                 value = Math.round(value / step) * step;
                             }
                         }
-                        return value;
                     }
+
+                    // --- Config Save/Load Logic ---
+                    const STORAGE_KEY = 'freakinFractalsPresets';
+                    function getSavedPresets() {
+                        try {
+                            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+                        } catch (e) { return {}; }
+                    }
+                    function savePreset(name, config) {
+                        const presets = getSavedPresets();
+                        presets[name] = config;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+                        updatePresetDropdown();
+                    }
+                    function updatePresetDropdown() {
+                        const selector = document.getElementById('preset-selector');
+                        if (!selector) return;
+                        selector.innerHTML = '<option value="">-- Select a Saved Preset --</option>';
+                        const presets = getSavedPresets();
+                        Object.keys(presets).forEach(name => {
+                            const opt = document.createElement('option');
+                            opt.value = name;
+                            opt.textContent = name;
+                            selector.appendChild(opt);
+                        });
+                    }
+
+                    document.getElementById('save-preset-btn').addEventListener('click', () => {
+                        const name = prompt('Enter a name for this configuration:');
+                        if (name && name.trim()) {
+                            savePreset(name.trim(), JSON.parse(JSON.stringify(settings)));
+                            document.getElementById('preset-selector').value = name.trim();
+                        }
+                    });
+
+                    document.getElementById('preset-selector').addEventListener('change', (e) => {
+                        const name = e.target.value;
+                        if (!name) return;
+                        const presets = getSavedPresets();
+                        if (presets[name]) {
+                            loadExactConfiguration(presets[name]);
+                        }
+                    });
+
+                    function loadExactConfiguration(config) {
+                        Object.keys(config).forEach(key => {
+                            const sliderEl = document.getElementById(key);
+                            const toggleEl = document.getElementById(key + '-toggle');
+
+                            if (sliderEl && sliderEl.type === 'range') {
+                                sliderEl.value = config[key];
+                                sliderEl.dispatchEvent(new Event('input'));
+                            } else if (toggleEl && toggleEl.type === 'checkbox') {
+                                toggleEl.checked = !!config[key];
+                                toggleEl.dispatchEvent(new Event('change'));
+                            } else if (key in settings) {
+                                settings[key] = config[key];
+                            }
+                        });
+
+                        if (config.colors) {
+                            ['core', 'glow', 'line', 'fill', 'accessory'].forEach(channel => {
+                                if (typeof config.colors[channel] === 'number') {
+                                    settings.colors[channel] = config.colors[channel];
+                                    const picker = document.getElementById('col-' + channel);
+                                    if (picker) {
+                                        picker.value = intToHexString(config.colors[channel]);
+                                        picker.dispatchEvent(new Event('input'));
+                                    }
+                                }
+                            });
+                        }
+
+                        if (config.brushType) {
+                            const brushEl = document.getElementById('brush-type');
+                            if (brushEl) {
+                                brushEl.value = config.brushType;
+                                brushEl.dispatchEvent(new Event('change'));
+                            }
+                        }
+                    }
+
+                    // Initialize dropdown
+                    updatePresetDropdown();
 
                     function applyChaosPreset(preset) {
                         const config = preset.config || {};
@@ -2079,7 +2211,10 @@
                         });
                     });
 
-                    document.getElementById('reset-btn').addEventListener('click', () => location.reload());
+                    document.getElementById('reset-btn').addEventListener('click', () => {
+                        loadExactConfiguration(FACTORY_DEFAULTS);
+                        document.getElementById('preset-selector').value = ""; // Clear selection
+                    });
 
                     // --- Audio Reactivity Setup ---
                     // --- Audio Reactivity Setup ---
