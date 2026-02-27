@@ -658,6 +658,7 @@
                 precision highp float;
                 in vec2 vTextureCoord;
                 uniform sampler2D uSampler;
+                out vec4 outColor;
 
                 void main(void) {
                     vec4 color = texture(uSampler, vTextureCoord);
@@ -2018,8 +2019,10 @@
 
                             if (key === 'metaball') {
                                 if (e.target.checked) {
-                                    particleContainer.filters = [metaballThreshold];
-                                    particleContainer.filterArea = app.screen;
+                                    if (metaballThreshold) {
+                                        particleContainer.filters = [metaballThreshold];
+                                        particleContainer.filterArea = app.screen;
+                                    }
                                     // Suppress glow and web lines when metaball is active to avoid visual noise
                                     glowContainer.visible = false;
                                     webGraphics.visible = false;

@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Volumetric Voxel Clouds - GPU Curl Noise</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #103060 0%, #60a0ff 60%, #e0f0ff 100%);
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 24px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 300;
+        }
+
+        p {
+            margin: 0;
+            font-size: 14px;
+            color: rgba(150, 200, 255, 0.6);
+        }
+
+        /* PREMIUM CONTROL PANEL */
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            max-height: 90vh;
+            background: rgba(15, 15, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            color: white;
+            z-index: 100;
+            overflow-y: auto;
+            pointer-events: auto;
+            font-size: 13px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8af;
+            border-bottom: 1px solid rgba(136, 170, 255, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .param {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .param label {
+            margin-bottom: 5px;
+            opacity: 0.7;
+        }
+
+        .param input {
+            accent-color: #8af;
+            cursor: pointer;
+        }
+
+        .param span {
+            font-family: monospace;
+            font-size: 11px;
+            color: #8af;
+            align-self: flex-end;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui-overlay">
+        <h1>Volumetric Plume</h1>
+        <p>GPGPU Curl Noise Voxel Simulation</p>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <h3>Cloud Density & Shape</h3>
+            <div class="param">
+                <label>Voxel Count (1M Max)</label>
+                <input type="range" id="uVoxelCount" min="10000" max="1048576" step="10000" value="500000">
+                <span id="uVoxelCount-val">500,000</span>
+            </div>
+            <div class="param">
+                <label>Voxel Width</label>
+                <input type="range" id="uVoxelWidth" min="0.5" max="15.0" step="0.1" value="7.8">
+                <span id="uVoxelWidth-val">7.8</span>
+            </div>
+            <div class="param">
+                <label>Voxel Length</label>
+                <input type="range" id="uVoxelLength" min="1.0" max="30.0" step="0.5" value="5.5">
+                <span id="uVoxelLength-val">5.5</span>
+            </div>
+            <div class="param">
+                <label>Opacity (Alpha)</label>
+                <input type="range" id="uOpacity" min="0.1" max="1.0" step="0.05" value="0.1">
+                <span id="uOpacity-val">0.1</span>
+            </div>
+            <div class="param">
+                <label>Sky Void Height</label>
+                <input type="range" id="uSkyVoidY" min="-1000" max="1200" step="10" value="400">
+                <span id="uSkyVoidY-val">400</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Movement & Noise</h3>
+            <div class="param">
+                <label>Simulation Speed</label>
+                <input type="range" id="uSimSpeed" min="0.01" max="1.0" step="0.01" value="1.0">
+                <span id="uSimSpeed-val">1.0</span>
+            </div>
+            <div class="param">
+                <label>Noise Curly-ness (Scale)</label>
+                <input type="range" id="uNoiseFreq" min="0.01" max="0.3" step="0.01" value="0.3">
+                <span id="uNoiseFreq-val">0.3</span>
+            </div>
+            <div class="param">
+                <label>Noise Strength</label>
+                <input type="range" id="uNoisePower" min="0.0" max="1.0" step="0.05" value="1.0">
+                <span id="uNoisePower-val">1.0</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Organic Evolution</h3>
+            <div class="param">
+                <label>Morph Frequency</label>
+                <input type="range" id="uMorphFreq" min="0.001" max="0.1" step="0.001" value="0.029">
+                <span id="uMorphFreq-val">0.029</span>
+            </div>
+            <div class="param">
+                <label>Cloud Breaking (Power)</label>
+                <input type="range" id="uMorphPower" min="0" max="200" step="5" value="0">
+                <span id="uMorphPower-val">0</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Lighting & Atmosphere</h3>
+            <div class="param">
+                <label>Sky Top Color</label>
+                <input type="color" id="uBgColor" value="#103060">
+            </div>
+            <div class="param">
+                <label>Sky Horizon</label>
+                <input type="color" id="uHorizonColor" value="#e0f0ff">
+            </div>
+            <div class="param">
+                <label>Sun Light Color</label>
+                <input type="color" id="uSunColor" value="#ffddaa">
+            </div>
+            <div class="param">
+                <label>Sun Contrast</label>
+                <input type="range" id="uSunContrast" min="0.5" max="3.0" step="0.1" value="0.5">
+                <span id="uSunContrast-val">0.5</span>
+            </div>
+            <div class="param">
+                <label>Self-Shadow Intensity</label>
+                <input type="range" id="uAO" min="0.1" max="1.0" step="0.05" value="0.1">
+                <span id="uAO-val">0.1</span>
+            </div>
+            <div class="param">
+                <label>Voxel Glow (Bloom Feed)</label>
+                <input type="range" id="uGlow" min="0.0" max="1.0" step="0.05" value="1.0">
+                <span id="uGlow-val">1.0</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Cinematic Bloom & Supernova</h3>
+            <div class="param" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                <label>Additive Supernova Mode</label>
+                <input type="checkbox" id="uAdditive" checked>
+            </div>
+            <div class="param">
+                <label>Supernova Intensity</label>
+                <input type="range" id="uSupernova" min="0.0" max="2.0" step="0.1" value="0.2">
+                <span id="uSupernova-val">0.2</span>
+            </div>
+            <div class="param">
+                <label>Bloom Strength</label>
+                <input type="range" id="uBloomStrength" min="0.0" max="3.0" step="0.1" value="0.0">
+                <span id="uBloomStrength-val">0.0</span>
+            </div>
+            <div class="param">
+                <label>Bloom Radius</label>
+                <input type="range" id="uBloomRadius" min="0.0" max="1.0" step="0.05" value="0.0">
+                <span id="uBloomRadius-val">0.0</span>
+            </div>
+            <div class="param">
+                <label>Bloom Threshold</label>
+                <input type="range" id="uBloomThreshold" min="0.0" max="1.0" step="0.05" value="0.0">
+                <span id="uBloomThreshold-val">0.0</span>
+            </div>
+        </div>
+    </div>
+    <div id="canvas-container"></div>
+
+    <!-- Include Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Post-processing for Bloom -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/stats.min.js"></script>
+
+    <!-- Shader Components -->
+    <script id="curl-noise-chunk" type="x-shader/x-chunk">
+        // Simplex 3D Noise 
+        // by Ian McEwan, Ashima Arts
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+
+        float snoise(vec3 v) {
+            const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+            const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+
+            // First corner
+            vec3 i  = floor(v + dot(v, C.yyy) );
+            vec3 x0 = v - i + dot(i, C.xxx) ;
+
+            // Other corners
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min( g.xyz, l.zxy );
+            vec3 i2 = max( g.xyz, l.zxy );
+
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+
+            // Permutations
+            i = mod289(i); 
+            vec4 p = permute( permute( permute( 
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+
+            // Gradients
+            float n_ = 0.142857142857; // 1.0/7.0
+            vec3  ns = n_ * D.wyz - D.xzx;
+
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_ );
+
+            vec4 x = x_ *ns.x + ns.yyyy;
+            vec4 y = y_ *ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+
+            vec4 b0 = vec4( x.xy, y.xy );
+            vec4 b1 = vec4( x.zw, y.zw );
+
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+
+            vec3 p0 = vec3(a0.xy,h.x);
+            vec3 p1 = vec3(a0.zw,h.y);
+            vec3 p2 = vec3(a1.xy,h.z);
+            vec3 p3 = vec3(a1.zw,h.w);
+
+            // Normalise gradients
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+
+            // Mix final noise value
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+                                        dot(p2,x2), dot(p3,x3) ) );
+        }
+
+        vec3 snoiseVec3( vec3 x ){
+            float s  = snoise(vec3( x ));
+            float s1 = snoise(vec3( x.y - 19.1 , x.z + 33.4 , x.x + 47.2 ));
+            float s2 = snoise(vec3( x.z + 74.2 , x.x - 124.5 , x.y + 99.4 ));
+            vec3 c = vec3( s , s1 , s2 );
+            return c;
+        }
+
+        vec3 curlNoise( vec3 p ){
+            const float e = .1;
+            vec3 dx = vec3( e   , 0.0 , 0.0 );
+            vec3 dy = vec3( 0.0 , e   , 0.0 );
+            vec3 dz = vec3( 0.0 , 0.0 , e   );
+
+            vec3 p_x0 = snoiseVec3( p - dx );
+            vec3 p_x1 = snoiseVec3( p + dx );
+            vec3 p_y0 = snoiseVec3( p - dy );
+            vec3 p_y1 = snoiseVec3( p + dy );
+            vec3 p_z0 = snoiseVec3( p - dz );
+            vec3 p_z1 = snoiseVec3( p + dz );
+
+            float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
+            float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
+            float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+
+            const float divisor = 1.0 / ( 2.0 * e );
+            return normalize( vec3( x , y , z ) * divisor );
+        }
+    </script>
+
+    <script id="simulation-vertex" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <script id="simulation-velocity" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform sampler2D textureDefaultPosition;
+        uniform float uTime;
+        uniform vec3 uRocketPos;
+        uniform vec3 uRocketVel;
+        uniform float uRolling;
+        uniform float uDelta;
+        
+        // Debug Uniforms
+        uniform float uSimSpeed;
+        uniform float uNoiseFreq;
+        uniform float uNoisePower;
+        uniform float uWind;
+        uniform float uMorphFreq;
+        uniform float uMorphPower;
+
+        void main() {
+            vec3 pos = texture2D(texturePosition, vUv).xyz;
+            vec4 velData = texture2D(textureVelocity, vUv);
+            vec3 vel = velData.xyz;
+            float recoveryTimer = velData.w; // 1.0 (fresh) to 0.0 (recovered)
+            
+            vec3 defPos = texture2D(textureDefaultPosition, vUv).xyz;
+            
+            // No recovery decay - permanent carving
+            // recoveryTimer = max(0.0, recoveryTimer - uDelta * 0.1);
+
+            // 1. Billowing & Evolution
+            float timeFactor = uTime * uSimSpeed;
+            float billow = 0.5 + 0.5 * sin(timeFactor * 0.5); 
+            vec3 curl = curlNoise(pos * uNoiseFreq + timeFactor * 0.3);
+            vel += curl * (uNoisePower * 0.1) * (0.5 + billow * 0.5);
+            
+            // 2. Continuous Leftward Flow
+            vel.x -= uWind * 0.3;
+            
+            // Rocket Displacement & Carving
+            vec3 rocketDir = pos - uRocketPos;
+            float distToRocket = length(rocketDir);
+            if (distToRocket < 55.0 && distToRocket > 0.0001) {
+                float force = (55.0 - distToRocket) / 55.0;
+                vec3 thrust = normalize(rocketDir) * force * 5.0;
+                vel += thrust;
+                recoveryTimer = 1.0; // Trigger persistence
+            }
+
+            // 3. Morphing Base
+            vec3 morph = curlNoise(pos * uMorphFreq + timeFactor * 0.1) * uMorphPower;
+            vec3 targetPos = defPos + morph;
+            
+            // Wrap-aware Return Force for Continuous Flow
+            vec3 dist = targetPos - pos;
+            if (dist.x > 3000.0) dist.x -= 6000.0;
+            if (dist.x < -3000.0) dist.x += 6000.0;
+
+            // WORMHOLE TUNNEL LOGIC
+            float tunnelRadius = 0.0;
+            if (recoveryTimer > 0.8) {
+                tunnelRadius = 65.0; // Wide open
+            } else if (recoveryTimer > 0.2) {
+                tunnelRadius = 35.0; // Slightly contracted
+            }
+            
+            if (tunnelRadius > 0.0) {
+                vec3 awayFromTarget = pos - targetPos;
+                if (awayFromTarget.x > 3000.0) awayFromTarget.x = 0.0; 
+                if (awayFromTarget.x < -3000.0) awayFromTarget.x = 0.0;
+                
+                float d = length(awayFromTarget);
+                if (d > 0.001) {
+                    vec3 tunnelTargetPos = targetPos + (awayFromTarget / d) * tunnelRadius;
+                    dist = tunnelTargetPos - pos;
+                    if (dist.x > 3000.0) dist.x -= 6000.0;
+                    if (dist.x < -3000.0) dist.x += 6000.0;
+                }
+            }
+
+            // Apply Return Force
+            // To make the holes permanent, we simply DO NOT apply the return force 
+            // if they have been carved (recoveryTimer > 0.0). We also won't decay the timer.
+            
+            if (recoveryTimer == 0.0) {
+                vec3 returnForce = dist * 0.04; 
+                vel += returnForce;
+            }
+
+            vel *= 0.94; // Friction
+            gl_FragColor = vec4(vel, recoveryTimer);
+        }
+    </script>
+    <script id="simulation-contrail-pos" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform float uDelta;
+        uniform vec3 uRocketPos;
+
+        void main() {
+            vec4 posData = texture2D(texturePosition, vUv);
+            vec3 pos = posData.xyz;
+            float life = posData.w; // 1.0 (new) to 0.0 (dead)
+            
+            vec3 vel = texture2D(textureVelocity, vUv).xyz;
+            
+            // Age the particle
+            life -= uDelta * 0.2; // 5-second lifespan (1.0 / 0.2 = 5)
+
+            if (life <= 0.0) {
+                // Respawn at rocket exhaust
+                pos = uRocketPos;
+                life = 1.0;
+            } else {
+                pos += vel * (uDelta * 60.0);
+            }
+            
+            gl_FragColor = vec4(pos, life);
+        }
+    </script>
+
+    <script id="simulation-contrail-vel" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform float uTime;
+        uniform float uWind;
+        uniform float uDelta;
+        uniform vec3 uRocketPos;
+        uniform vec3 uRocketVel;
+        uniform float uSplash;
+
+        void main() {
+            vec3 pos = texture2D(texturePosition, vUv).xyz;
+            vec3 vel = texture2D(textureVelocity, vUv).xyz;
+            
+            vec3 distToRocket = pos - uRocketPos;
+            if (length(distToRocket) < 10.0) {
+                // If uSplash is high (cloud exit), give it a massive explosive kick
+                float splashForce = 80.0 + uSplash * 250.0;
+                vel = uRocketVel * 1.5 + normalize(distToRocket + curlNoise(pos * 0.5) * 5.0) * splashForce;
+            } else {
+                vec3 curl = curlNoise(pos * 0.1 + uTime * 0.2);
+                vel += curl * 0.05;
+                vel.x -= uWind * 0.2;
+                vel *= 0.96;
+            }
+            
+            gl_FragColor = vec4(vel, 1.0);
+        }
+    </script>
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+    Riverside:
+
+    <script id="simulation-position" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform float uDelta;
+
+        void main() {
+            vec3 pos = texture2D(texturePosition, vUv).xyz;
+            vec3 vel = texture2D(textureVelocity, vUv).xyz;
+            
+            // Euler integration
+            pos += vel * (uDelta * 60.0); // Normalize delta to 60fps standard
+
+            // X-AXIS WRAPPING (Conveyor Belt Logic)
+            if (pos.x < -3000.0) pos.x += 6000.0;
+            if (pos.x > 3000.0) pos.x -= 6000.0;
+            
+            gl_FragColor = vec4(pos, 1.0);
+        }
+
+
+
+
+
+    </script>
+
+    <!-- RENDER SHADERS -->
+    <script id="contrail-vertex" type="x-shader/x-vertex">
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform vec2 gpuResolution;
+        
+        varying vec3 vNormal;
+        varying float vAlpha;
+        varying vec3 vWorldPos;
+
+        void main() {
+            float id = float(gl_InstanceID);
+            vec2 uv = vec2(
+                mod(id, gpuResolution.x) / gpuResolution.x,
+                floor(id / gpuResolution.x) / gpuResolution.y
+            );
+
+            vec4 posData = texture2D(texturePosition, uv);
+            vec3 pos = posData.xyz;
+            vAlpha = posData.w; // Age (1.0 to 0.0)
+            
+            vec3 vel = texture2D(textureVelocity, uv).xyz;
+            vec3 dir = normalize(vel + vec3(0.0001));
+            
+            vec3 up = vec3(0.0, 1.0, 0.0);
+            if (abs(dir.y) > 0.99) up = vec3(1.0, 0.0, 0.0);
+            vec3 right = normalize(cross(up, dir));
+            up = normalize(cross(dir, right));
+            mat3 alignMat = mat3(right, up, dir);
+
+            // Shard Aesthetic: Irregular sharp cubes
+            vec3 scaledPos = position * vec3(2.5, 2.5, 12.0) * (0.8 + vAlpha * 0.2);
+            vec3 rotPos = alignMat * scaledPos;
+
+            vec4 worldPosition = modelMatrix * vec4(rotPos + pos, 1.0);
+            vWorldPos = worldPosition.xyz;
+            vNormal = normalize(normalMatrix * (alignMat * normal));
+            
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+    </script>
+
+    <script id="contrail-fragment" type="x-shader/x-fragment">
+        varying vec3 vNormal;
+        varying float vAlpha;
+        varying vec3 vWorldPos;
+        
+        uniform vec3 lightDir;
+        uniform vec3 uSunColor;
+
+        void main() {
+            vec3 safeLightDir = length(lightDir) > 0.1 ? normalize(lightDir) : vec3(0.0, 1.0, 0.0);
+            float dotL = max(dot(vNormal, safeLightDir), 0.0);
+            vec3 color = mix(vec3(0.9, 0.95, 1.0), uSunColor, dotL * 0.5);
+            
+            // 5 second fade is handled by vAlpha
+            gl_FragColor = vec4(color, vAlpha * 0.4);
+        }
+    </script>
+
+    <script id="render-vertex" type="x-shader/x-vertex">
+        uniform sampler2D texturePosition;
+        uniform sampler2D textureVelocity;
+        uniform vec2 gpuResolution;
+        
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+        varying float vSpeed;
+        varying vec3 vWorldPos;
+        
+        uniform float uVoxelWidth;
+        uniform float uVoxelLength;
+
+        void main() {
+            // Calculate UV based on instance ID
+            float id = float(gl_InstanceID);
+            vec2 uv = vec2(
+                mod(id, gpuResolution.x) / gpuResolution.x,
+                floor(id / gpuResolution.x) / gpuResolution.y
+            );
+
+            vec3 pos = texture2D(texturePosition, uv).xyz;
+            vec3 vel = texture2D(textureVelocity, uv).xyz;
+            
+            vSpeed = length(vel);
+            vec3 dir = normalize(vel + vec3(0.0001)); // Avoid div by zero
+            
+            // Build rotation matrix to align the Z-axis of the box with the velocity direction
+            vec3 up = vec3(0.0, 1.0, 0.0);
+            if (abs(dir.y) > 0.99) up = vec3(1.0, 0.0, 0.0);
+            vec3 right = normalize(cross(up, dir));
+            up = normalize(cross(dir, right));
+            mat3 alignMat = mat3(right, up, dir);
+
+            // Dynamic Scaling from Controls (allowing non-uniform length)
+            vec3 scaledPos = position * vec3(uVoxelWidth, uVoxelWidth, uVoxelLength + vSpeed * 1.5);
+            vec3 rotPos = alignMat * scaledPos;
+
+            vec4 worldPosition = modelMatrix * vec4(rotPos + pos, 1.0);
+            vWorldPos = worldPosition.xyz;
+
+            vec4 mvPosition = viewMatrix * worldPosition;
+            vViewPosition = -mvPosition.xyz;
+            
+            // Rotate the normal as well for correct Lambert shading
+            vNormal = normalize(normalMatrix * (alignMat * normal));
+            
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script id="render-fragment" type="x-shader/x-fragment">
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+        varying float vSpeed;
+        varying vec3 vWorldPos;
+
+        uniform vec3 lightDir;
+        uniform vec3 cloudColor;
+        uniform vec3 highlightColor;
+        
+        uniform float uSunContrast;
+        uniform float uAO;
+        uniform float uOpacity;
+        uniform float uGlow;
+        uniform float uSupernova;
+        uniform vec3 uSkyColor;
+        uniform vec3 uHorizonColor;
+        uniform vec3 uSunColor;
+        uniform float uSkyVoidY;
+
+        void main() {
+            // High Sky Void clipping
+            if (vWorldPos.y > uSkyVoidY) discard;
+
+            // FAKE VOLUMETRIC CLOUD LIGHTING
+            vec3 normal = normalize(vNormal);
+            
+            // Global 3 o'clock sunlight (coming from the right side)
+            vec3 sunDir = normalize(vec3(1.0, 0.1, 0.2));
+            float sunDotL = max(dot(normal, sunDir), 0.0);
+            
+            // Local rocket light
+            vec3 rocketLightDir = length(lightDir) > 0.1 ? normalize(lightDir) : vec3(0.0, 1.0, 0.0);
+            float rocketDotL = max(dot(normal, rocketLightDir), 0.0);
+            
+            // Deep Ambient Occlusion and Self-Shadowing for Dimension (Linked to Sliders)
+            // Sharpened for Realism: Clouds are darker at the bottom (bases are flat and heavy)
+            float cloudHeight = clamp((vWorldPos.y + 400.0) / 1000.0, 0.0, 1.0);
+            
+            // Horizon haze integration
+            vec3 skyRef = mix(uHorizonColor, uSkyColor, cloudHeight);
+            vec3 ambient = mix(vec3(0.02, 0.03, 0.05), skyRef * 0.8, pow(cloudHeight, 1.2)) + (0.2 * normal.y);
+            
+            // Warm Sunlight (Golden Hour)
+            vec3 sunReflection = uSunColor * pow(sunDotL, uSunContrast) * (0.2 + 0.8 * cloudHeight);
+            vec3 rocketColor = highlightColor * rocketDotL * (vSpeed * 0.02);
+            
+            // Sharp AO for "Flat Bottom" effect
+            float ao = mix(0.1, 1.0, pow(cloudHeight, 0.4)) * (1.0 - uAO) + uAO * pow(cloudHeight, 0.6);
+            
+            vec3 finalColor = (cloudColor * ambient + sunReflection * 1.8 + rocketColor + (cloudColor * uGlow * 2.0)) * ao;
+            
+            // Additive Supernova scaling: boost brightness based on slider
+            finalColor *= (1.0 + uSupernova * 2.0);
+
+            // Subtle depth fading
+            float depthFade = clamp(1.0 - (vViewPosition.z - 1200.0) / 1000.0, 0.0, 1.0);
+            
+            // Scaled alpha
+            float alpha = clamp(uOpacity + (vSpeed * 0.1), 0.0, 1.0) * depthFade;
+            
+            // Scale alpha by supernova for additive softness
+            alpha *= (uSupernova > 0.0 ? uSupernova : 1.0);
+            
+            gl_FragColor = vec4(finalColor, alpha);
+        }
+    </script>
+
+    <!-- Main Logic -->
+    <script>
+        // Init ThreeJS
+        const container = document.getElementById('canvas-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x60a0ff, 0); // Initial Summer Day Blue (transparent to show CSS)
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        // Removed fog so we can see the crisp CSS dark gradient behind it
+        // scene.fog = new THREE.FogExp2(0x050510, 0.001);
+
+        // Stats UI
+        const stats = new Stats();
+        stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+        document.body.appendChild(stats.dom);
+        stats.dom.style.left = '10px';
+        stats.dom.style.top = '10px';
+        stats.dom.style.zIndex = '200';
+
+        // Extend far clipping plane so the zoomed-out camera doesn't start culling clouds
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 10000);
+        // Zoomed way out for a fixed "Big Sky" view
+        camera.position.set(0, 0, 1600);
+        camera.lookAt(0, 0, 0);
+
+        const clock = new THREE.Clock();
+
+        const TEXTURE_WIDTH = 1024;
+        const TEXTURE_HEIGHT = 1024;
+        const PARTICLES = TEXTURE_WIDTH * TEXTURE_HEIGHT; // 1,048,576 voxels
+
+        const params = {
+            uVoxelCount: 500000,
+            uVoxelWidth: 7.8, uVoxelLength: 5.5, uOpacity: 0.1,
+            uSkyVoidY: 400,
+            uSimSpeed: 1.0, uNoiseFreq: 0.3, uNoisePower: 1.0, uWind: 0.3,
+            uMorphFreq: 0.029, uMorphPower: 0, uSunContrast: 0.5, uAO: 0.1,
+            uGlow: 1.0,
+            uSupernova: 0.2,
+            uBloomStrength: 0.0, uBloomRadius: 0.0, uBloomThreshold: 0.0,
+            uBgColor: '#103060', uHorizonColor: '#e0f0ff', uSunColor: '#ffddaa',
+            uAdditive: true
+        };
+
+        // --- GPGPU Setup ---
+        const gpuScene = new THREE.Scene();
+        const gpuCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const gpuMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+        gpuScene.add(gpuMesh);
+
+        function createRenderTarget() {
+            return new THREE.WebGLRenderTarget(TEXTURE_WIDTH, TEXTURE_HEIGHT, {
+                wrapS: THREE.ClampToEdgeWrapping,
+                wrapT: THREE.ClampToEdgeWrapping,
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                format: THREE.RGBAFormat,
+                type: THREE.FloatType,
+                depthBuffer: false,
+                stencilBuffer: false
+            });
+        }
+
+        let rtPosition1 = createRenderTarget();
+        let rtPosition2 = createRenderTarget();
+        let rtVelocity1 = createRenderTarget();
+        let rtVelocity2 = createRenderTarget();
+
+        // Initialize Data
+        const posArray = new Float32Array(PARTICLES * 4);
+        const velArray = new Float32Array(PARTICLES * 4);
+
+        // Arrange particles into organic, Vertical Cumulonimbus Towers
+        const numClusters = 140;
+        const clusters = [];
+
+        // Distribute towers across the horizontal range
+        for (let i = 0; i < 40; i++) {
+            const baseX = (Math.random() - 0.5) * 6000;
+            const baseZ = (Math.random() - 0.5) * 1500;
+            const numSegments = 3 + Math.floor(Math.random() * 5);
+
+            // Stack segments vertically to form a tower
+            for (let j = 0; j < numSegments; j++) {
+                clusters.push({
+                    x: baseX + (Math.random() - 0.5) * 200 * j, // Slight lean
+                    y: -500 + (j * 250), // Stack upward
+                    z: baseZ + (Math.random() - 0.5) * 200 * j,
+                    radius: (j === 0) ? 400 : 350 - (j * 40) // Wider base, tapering top
+                });
+            }
+        }
+
+        // Add some smaller "cauliflower" bumps around the sides
+        for (let i = 0; i < 60; i++) {
+            clusters.push({
+                x: (Math.random() - 0.5) * 6000,
+                y: -100 + (Math.random() - 0.5) * 600,
+                z: (Math.random() - 0.5) * 1500,
+                radius: 100 + Math.random() * 200
+            });
+        }
+
+        for (let i = 0; i < posArray.length; i += 4) {
+            // Pick a random cluster weighting towards the center ones
+            const cluster = clusters[Math.floor(Math.random() * clusters.length)];
+
+            // Random point within the sphere volume
+            const r = cluster.radius * Math.cbrt(Math.random());
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+
+            // Create the initial organic puffy shapes (flattened slightly on Y axis)
+            posArray[i + 0] = cluster.x + r * Math.sin(phi) * Math.cos(theta); // X
+            posArray[i + 1] = cluster.y + r * Math.sin(phi) * Math.sin(theta) * 0.7; // Y
+            posArray[i + 2] = cluster.z + r * Math.cos(phi); // Z
+            posArray[i + 3] = 1.0;
+
+            velArray[i + 0] = 0;
+            velArray[i + 1] = 0;
+            velArray[i + 2] = 0;
+            velArray[i + 3] = 1.0;
+        }
+
+        const defaultPositionTexture = new THREE.DataTexture(posArray, TEXTURE_WIDTH, TEXTURE_HEIGHT, THREE.RGBAFormat, THREE.FloatType);
+        defaultPositionTexture.needsUpdate = true;
+
+        const initialVelocityTexture = new THREE.DataTexture(velArray, TEXTURE_WIDTH, TEXTURE_HEIGHT, THREE.RGBAFormat, THREE.FloatType);
+        initialVelocityTexture.needsUpdate = true;
+
+        // Render targets need to be seeded initially or they are just empty black (0,0,0)
+        gpuMesh.material = new THREE.ShaderMaterial({
+            uniforms: { uTexture: { value: defaultPositionTexture } },
+            vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+            fragmentShader: `varying vec2 vUv; uniform sampler2D uTexture; void main() { gl_FragColor = texture2D(uTexture, vUv); }`
+        });
+        renderer.setRenderTarget(rtPosition1);
+        renderer.render(gpuScene, gpuCamera);
+        renderer.setRenderTarget(rtPosition2);
+        renderer.render(gpuScene, gpuCamera);
+
+        gpuMesh.material.uniforms.uTexture.value = initialVelocityTexture;
+        renderer.setRenderTarget(rtVelocity1);
+        renderer.render(gpuScene, gpuCamera);
+        renderer.setRenderTarget(rtVelocity2);
+        renderer.render(gpuScene, gpuCamera);
+        renderer.setRenderTarget(null);
+
+        // Compute Shaders
+        const curlNoiseChunk = document.getElementById('curl-noise-chunk').textContent;
+
+        const velocityMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                textureDefaultPosition: { value: defaultPositionTexture },
+                uTime: { value: 0.0 },
+                uRocketPos: { value: new THREE.Vector3() },
+                uRocketVel: { value: new THREE.Vector3() },
+                uRolling: { value: 0.0 },
+                uDelta: { value: 0.0 },
+                // Debug Uniforms
+                uSimSpeed: { value: 0.15 },
+                uNoiseFreq: { value: 0.05 },
+                uNoisePower: { value: 0.4 },
+                uWind: { value: 0.01 },
+                uMorphFreq: { value: 0.008 },
+                uMorphPower: { value: 80.0 }
+            },
+            vertexShader: document.getElementById('simulation-vertex').textContent,
+            fragmentShader: curlNoiseChunk + document.getElementById('simulation-velocity').textContent
+        });
+
+        const positionMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                uDelta: { value: 0.0 }
+            },
+            vertexShader: document.getElementById('simulation-vertex').textContent,
+            fragmentShader: document.getElementById('simulation-position').textContent
+        });
+
+        // --- Render Voxel InstancedMesh ---
+        const voxelGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        // Using a basic ShaderMaterial mapping IDs to positions
+        const voxelMat = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                gpuResolution: { value: new THREE.Vector2(TEXTURE_WIDTH, TEXTURE_HEIGHT) },
+                lightDir: { value: new THREE.Vector3(1, 1, 0.5).normalize() },
+                cloudColor: { value: new THREE.Color(0xd0d5da) },
+                highlightColor: { value: new THREE.Color(0xffffff) },
+                // Debug Uniforms
+                uVoxelWidth: { value: 1.5 },
+                uVoxelLength: { value: 8.0 },
+                uSunContrast: { value: 1.5 },
+                uAO: { value: 0.7 },
+                uOpacity: { value: 0.7 },
+                uGlow: { value: 0.15 },
+                uSupernova: { value: 0.8 },
+                uSkyColor: { value: new THREE.Color(0x103060) },
+                uHorizonColor: { value: new THREE.Color(0xe0f0ff) },
+                uSunColor: { value: new THREE.Color(0xffddaa) },
+                uSkyVoidY: { value: 400 }
+            },
+            vertexShader: document.getElementById('render-vertex').textContent,
+            fragmentShader: document.getElementById('render-fragment').textContent,
+            transparent: true,
+            depthWrite: false, // Prevents voxels from awkwardly Z-fighting and hard-clipping
+            blending: THREE.NormalBlending // Normal blending gives solid mass and definition (blocks out light)
+        });
+
+        const instancedMesh = new THREE.InstancedMesh(voxelGeo, voxelMat, PARTICLES);
+        instancedMesh.count = params.uVoxelCount; // Initial density
+
+        // Give each instance a dummy matrix
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < PARTICLES; i++) {
+            dummy.position.set(0, 0, 0);
+            dummy.updateMatrix();
+            instancedMesh.setMatrixAt(i, dummy.matrix);
+        }
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 2000);
+        scene.add(instancedMesh);
+
+        // --- Contrail GPGPU Setup (64x64 = 4096 particles) ---
+        const CONTRAIL_WIDTH = 64;
+        const CONTRAIL_PARTICLES = CONTRAIL_WIDTH * CONTRAIL_WIDTH;
+
+        const rtContrailPos1 = new THREE.WebGLRenderTarget(CONTRAIL_WIDTH, CONTRAIL_WIDTH, { format: THREE.RGBAFormat, type: THREE.FloatType });
+        const rtContrailPos2 = rtContrailPos1.clone();
+        const rtContrailVel1 = rtContrailPos1.clone();
+        const rtContrailVel2 = rtContrailPos1.clone();
+
+        const contrailPosArray = new Float32Array(CONTRAIL_PARTICLES * 4);
+        const contrailVelArray = new Float32Array(CONTRAIL_PARTICLES * 4);
+        for (let i = 0; i < contrailPosArray.length; i += 4) contrailPosArray[i + 3] = 0.0; // Life = 0
+
+        const initialContrailPos = new THREE.DataTexture(contrailPosArray, CONTRAIL_WIDTH, CONTRAIL_WIDTH, THREE.RGBAFormat, THREE.FloatType);
+        initialContrailPos.needsUpdate = true;
+
+        const contrailPosMat = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                uDelta: { value: 0.0 },
+                uRocketPos: { value: new THREE.Vector3() }
+            },
+            vertexShader: document.getElementById('simulation-vertex').textContent,
+            fragmentShader: document.getElementById('simulation-contrail-pos').textContent
+        });
+
+        const contrailVelMat = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                uTime: { value: 0.0 },
+                uWind: { value: 0.0 },
+                uDelta: { value: 0.0 },
+                uRocketPos: { value: new THREE.Vector3() },
+                uRocketVel: { value: new THREE.Vector3() },
+                uSplash: { value: 0.0 }
+            },
+            vertexShader: document.getElementById('simulation-vertex').textContent,
+            fragmentShader: curlNoiseChunk + document.getElementById('simulation-contrail-vel').textContent
+        });
+
+        const contrailMeshMat = new THREE.ShaderMaterial({
+            uniforms: {
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                gpuResolution: { value: new THREE.Vector2(CONTRAIL_WIDTH, CONTRAIL_WIDTH) },
+                lightDir: { value: new THREE.Vector3(1, 1, 0.5).normalize() },
+                uSunColor: { value: new THREE.Color(params.uSunColor) }
+            },
+            vertexShader: document.getElementById('contrail-vertex').textContent,
+            fragmentShader: document.getElementById('contrail-fragment').textContent,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+
+        const contrailInstancedMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), contrailMeshMat, CONTRAIL_PARTICLES);
+        scene.add(contrailInstancedMesh);
+
+        // --- The Paper Airplane Entity ---
+        const rocketGroup = new THREE.Group();
+        rocketGroup.scale.set(2, 2, 2);
+
+        // Custom BufferGeometry for a folded paper airplane
+        const planeGeo = new THREE.BufferGeometry();
+        // Pointing along -Z axis (forward in Three.js standard projection)
+        const vertices = new Float32Array([
+            // Right wing
+            0, 0, -15,    // Nose
+            10, 0, 10,   // Back right tip
+            0, -3, 10,   // Bottom center fold
+
+            // Left wing
+            0, 0, -15,    // Nose
+            0, -3, 10,   // Bottom center fold
+            -10, 0, 10,  // Back left tip
+
+            // Center tail fin (optional folded edge)
+            0, 0, -15,    // Nose
+            0, 7, 10,    // Top tail tip
+            0, -3, 10,   // Bottom center fold
+        ]);
+        planeGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        planeGeo.computeVertexNormals();
+
+        const planeMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: 0xffffff, // Pure white emission
+            emissiveIntensity: 0.5,
+            side: THREE.DoubleSide,
+            roughness: 0.1
+        });
+        const rocketMesh = new THREE.Mesh(planeGeo, planeMat);
+        rocketGroup.add(rocketMesh);
+
+        // Point light for illumination (pure white)
+        const rocketLight = new THREE.PointLight(0xffffff, 2.0, 600);
+        rocketGroup.add(rocketLight);
+
+        scene.add(rocketGroup);
+
+        const rocketTargetPos = new THREE.Vector3();
+        const rocketVel = new THREE.Vector3();
+
+        // Cloud Detection for Splash
+        let wasInside = false;
+        let splashIntensity = 0;
+
+        function checkInsideCloud(pos) {
+            for (let i = 0; i < clusters.length; i++) {
+                const c = clusters[i];
+                const dx = pos.x - c.x;
+                const dy = pos.y - c.y;
+                const dz = pos.z - c.z;
+                const distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq < c.radius * c.radius) return true;
+            }
+            return false;
+        }
+
+        const mouse = new THREE.Vector2(0, 0);
+        const raycaster = new THREE.Raycaster();
+        const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+
+        // Interactive Flight State
+        let isRolling = false;
+        let rollTime = 0;
+        let rollVal = 0;
+        let lastMoveTime = performance.now();
+        let stallStartTime = 0;
+        let stallStartHeight = 0;
+        let spiralAngle = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            lastMoveTime = performance.now();
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+                lastMoveTime = performance.now();
+            }
+        }, { passive: true });
+
+        window.addEventListener('mousedown', () => {
+            isRolling = true;
+            rollTime = 0;
+            lastMoveTime = performance.now();
+        });
+
+        window.addEventListener('touchstart', () => {
+            isRolling = true;
+            rollTime = 0;
+            lastMoveTime = performance.now();
+        }, { passive: true });
+        // Optional Ambient Light to complement the shader
+        const ambient = new THREE.AmbientLight(0x202020);
+        scene.add(ambient);
+
+        // --- Post-Processing (Bloom) ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            1.2, // strength
+            0.4, // radius
+            0.2  // threshold
+        );
+
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+        composer.setSize(window.innerWidth, window.innerHeight);
+
+        // --- Interactive Controller Logic ---
+
+        function updateUniforms() {
+            Object.keys(params).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    const valDisplay = document.getElementById(id + '-val');
+
+                    if (el.type === 'range') {
+                        params[id] = parseFloat(el.value);
+                        if (valDisplay) valDisplay.textContent = el.value;
+
+                        // Sync to both materials where applicable
+                        if (velocityMaterial.uniforms[id]) velocityMaterial.uniforms[id].value = params[id];
+                        if (voxelMat.uniforms[id]) voxelMat.uniforms[id].value = params[id];
+
+                        // Sync directly to BloomPass
+                        if (id === 'uBloomStrength') bloomPass.strength = params[id];
+                        if (id === 'uBloomRadius') bloomPass.radius = params[id];
+                        if (id === 'uBloomThreshold') bloomPass.threshold = params[id];
+
+                        // Dynamic Instance Count control
+                        if (id === 'uVoxelCount' && instancedMesh) {
+                            instancedMesh.count = Math.min(params[id], PARTICLES);
+                        }
+                    } else if (el.type === 'checkbox') {
+                        params[id] = el.checked;
+                        if (id === 'uAdditive') {
+                            voxelMat.blending = el.checked ? THREE.AdditiveBlending : THREE.NormalBlending;
+                            voxelMat.needsUpdate = true;
+                        }
+                    } else if (el.type === 'color') {
+                        // Special Handling for Colors
+                        params[id] = el.value;
+                        if (id === 'uBgColor' || id === 'uHorizonColor') {
+                            const top = document.getElementById('uBgColor').value;
+                            const hor = document.getElementById('uHorizonColor').value;
+                            document.body.style.background = `linear-gradient(to bottom, ${top} 0%, #60a0ff 60%, ${hor} 100%)`;
+                            voxelMat.uniforms.uSkyColor.value.set(top);
+                            voxelMat.uniforms.uHorizonColor.value.set(hor);
+                            renderer.setClearColor(new THREE.Color(hor), 0); // Alpha 0 to show CSS gradient
+                        }
+                        if (id === 'uSunColor') {
+                            voxelMat.uniforms.uSunColor.value.set(params[id]);
+                        }
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('#controls input').forEach(input => {
+            input.addEventListener('input', updateUniforms);
+        });
+        updateUniforms(); // Initial sync
+
+        let iter = 0;
+
+        function render() {
+            stats.begin();
+            requestAnimationFrame(render);
+
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+            const now = performance.now();
+            const idleTime = (now - lastMoveTime) / 1000;
+
+            if (idleTime < 2.0) {
+                // NORMAL MOUSE FOLLOW
+                raycaster.setFromCamera(mouse, camera);
+                raycaster.ray.intersectPlane(plane, rocketTargetPos);
+                rocketTargetPos.z = 0;
+
+                const idealPos = new THREE.Vector3().copy(rocketGroup.position).lerp(rocketTargetPos, 0.015);
+                rocketVel.subVectors(idealPos, rocketGroup.position).multiplyScalar(15.0);
+                rocketGroup.position.copy(idealPos);
+                stallStartTime = 0; // Reset stall ref
+            } else {
+                // STALL & SPIRAL LOGIC
+                if (stallStartTime === 0) {
+                    stallStartTime = time;
+                    stallStartHeight = rocketGroup.position.y;
+                }
+                const stallElapsed = time - stallStartTime;
+
+                // Descent Parameters
+                const descentSpeed = 350.0;
+                const totalDescent = stallStartHeight + 1200; // From current height to bottom
+                const descentProgress = Math.min(1.0, (stallElapsed * descentSpeed) / totalDescent);
+
+                // Tight Spiral: Exactly 2 rotations (4 * PI) over the full descent
+                const spiralAngle = descentProgress * Math.PI * 4.0;
+                const radius = 60.0 * (1.0 - descentProgress * 0.5); // Tightens as it falls
+
+                const targetX = Math.cos(spiralAngle) * radius;
+                const targetY = stallStartHeight - (descentProgress * totalDescent);
+                const targetZ = Math.sin(spiralAngle) * radius * 0.3;
+
+                const targetPos = new THREE.Vector3(targetX, targetY, targetZ);
+                rocketVel.subVectors(targetPos, rocketGroup.position).multiplyScalar(10.0);
+                rocketGroup.position.copy(targetPos);
+
+                // Sky reset
+                if (rocketGroup.position.y < -1200) {
+                    rocketGroup.position.y = 1200;
+                    stallStartTime = 0; // Trigger new stall from top
+                }
+            }
+
+            // Flight Dynamics
+            const speed = rocketVel.length();
+
+            // Point the rocket nose forward
+            if (speed > 0.1) {
+                // When stalling, if just started, point straight down
+                let targetRot;
+                const stallElapsed = (stallStartTime > 0) ? (time - stallStartTime) : 0;
+
+                if (idleTime >= 2.0 && stallElapsed < 0.2) {
+                    targetRot = new THREE.Vector3().copy(rocketGroup.position).add(new THREE.Vector3(0, -100, 0));
+                } else {
+                    targetRot = new THREE.Vector3().copy(rocketGroup.position).add(rocketVel);
+                }
+
+                // Invert up-vector when looping backward (flying left) so it flies upside down during a loop
+                const upVector = new THREE.Vector3(0, 1, 0);
+                if (rocketVel.x < 0) {
+                    upVector.set(0, -1, 0);
+                }
+
+                // Construct standard lookAt matrix
+                const m1 = new THREE.Matrix4().lookAt(rocketGroup.position, targetRot, upVector);
+                rocketGroup.quaternion.setFromRotationMatrix(m1);
+            }
+
+            // Stall Jitter (Phase 1)
+            if (idleTime >= 2.0 && (time - stallStartTime) < 2.0) {
+                const jitter = Math.sin(time * 40.0) * 0.15;
+                rocketGroup.rotateX(jitter);
+                rocketGroup.rotateZ(jitter);
+            }
+
+            // Flutter effect when moving slow (paper airplane drifting)
+            if (speed < 5.0) {
+                const flutterAmt = (5.0 - speed) * 0.05;
+                rocketGroup.rotateX(Math.sin(time * 15.0) * flutterAmt);
+                rocketGroup.rotateZ(Math.cos(time * 12.0) * flutterAmt);
+            }
+
+            // High-speed Barrel Roll Logic
+            if (isRolling) {
+                rollTime += delta * 12.0; // Roll speed
+                rollVal = Math.sin(rollTime) * Math.PI * 2; // Full 360 rotation over the curve
+                rocketGroup.rotateZ(rollTime); // Spin along local forward axis
+
+                if (rollTime > Math.PI * 2) {
+                    isRolling = false;
+                    rollVal = 0;
+                }
+            } else {
+                rollVal = THREE.MathUtils.lerp(rollVal, 0, 0.1); // Smooth trail off
+            }
+
+            // Move the camera slowly to pan around the cloud, now locked to side-scrolling
+            // REMOVED: Camera is now fixed for a wide "Big Sky" view.
+
+            // 2. Compute Passes
+            let prevPos, currentPos, prevVel, currentVel;
+            if (iter % 2 === 0) {
+                prevPos = rtPosition1; currentPos = rtPosition2;
+                prevVel = rtVelocity1; currentVel = rtVelocity2;
+            } else {
+                prevPos = rtPosition2; currentPos = rtPosition1;
+                prevVel = rtVelocity2; currentVel = rtVelocity1;
+            }
+
+            // VELOCITY PASS
+            velocityMaterial.uniforms.texturePosition.value = prevPos.texture;
+            velocityMaterial.uniforms.textureVelocity.value = prevVel.texture;
+            velocityMaterial.uniforms.uTime.value = time;
+            velocityMaterial.uniforms.uDelta.value = Math.min(delta, 0.05);
+            velocityMaterial.uniforms.uRocketPos.value.copy(rocketGroup.position);
+            velocityMaterial.uniforms.uRocketVel.value.copy(rocketVel);
+            velocityMaterial.uniforms.uRolling.value = isRolling ? 1.0 : rollVal;
+
+            gpuMesh.material = velocityMaterial;
+            renderer.setRenderTarget(currentVel);
+            renderer.render(gpuScene, gpuCamera);
+
+            // POSITION PASS
+            positionMaterial.uniforms.texturePosition.value = prevPos.texture;
+            positionMaterial.uniforms.textureVelocity.value = currentVel.texture;
+            positionMaterial.uniforms.uDelta.value = Math.min(delta, 0.05);
+
+            gpuMesh.material = positionMaterial;
+            renderer.setRenderTarget(currentPos);
+            renderer.render(gpuScene, gpuCamera);
+
+            // --- CONTRAIL GPGPU PASSES ---
+            let cPrevPos, cCurrentPos, cPrevVel, cCurrentVel;
+            if (iter % 2 === 0) {
+                cPrevPos = rtContrailPos1; cCurrentPos = rtContrailPos2;
+                cPrevVel = rtContrailVel1; cCurrentVel = rtContrailVel2;
+            } else {
+                cPrevPos = rtContrailPos2; cCurrentPos = rtContrailPos1;
+                cPrevVel = rtContrailVel2; cCurrentVel = rtContrailVel1;
+            }
+
+            // Cloud Exit Splash Detection
+            const isInside = checkInsideCloud(rocketGroup.position);
+            if (wasInside && !isInside) {
+                splashIntensity = 1.0; // Trigger splash
+            }
+            wasInside = isInside;
+            splashIntensity = Math.max(0.0, splashIntensity - delta * 0.5); // 2-second decay
+
+            // Contrail Velocity
+            contrailVelMat.uniforms.texturePosition.value = cPrevPos.texture;
+            contrailVelMat.uniforms.textureVelocity.value = cPrevVel.texture;
+            contrailVelMat.uniforms.uTime.value = time;
+            contrailVelMat.uniforms.uWind.value = params.uWind;
+            contrailVelMat.uniforms.uDelta.value = Math.min(delta, 0.05);
+            contrailVelMat.uniforms.uRocketPos.value.copy(rocketGroup.position);
+            contrailVelMat.uniforms.uRocketVel.value.copy(rocketVel);
+            contrailVelMat.uniforms.uSplash.value = splashIntensity;
+            gpuMesh.material = contrailVelMat;
+            renderer.setRenderTarget(cCurrentVel);
+            renderer.render(gpuScene, gpuCamera);
+
+            // Contrail Position (Spawn/Age)
+            contrailPosMat.uniforms.texturePosition.value = cPrevPos.texture;
+            contrailPosMat.uniforms.textureVelocity.value = cCurrentVel.texture;
+            contrailPosMat.uniforms.uDelta.value = Math.min(delta, 0.05);
+            contrailPosMat.uniforms.uRocketPos.value.copy(rocketGroup.position);
+            gpuMesh.material = contrailPosMat;
+            renderer.setRenderTarget(cCurrentPos);
+            renderer.render(gpuScene, gpuCamera);
+
+            // 3. Render Main Scene
+            renderer.setRenderTarget(null); // Back to screen
+
+            // Render Clouds
+            voxelMat.uniforms.texturePosition.value = currentPos.texture;
+            voxelMat.uniforms.textureVelocity.value = currentVel.texture;
+
+            // Safety check for lightDir normalization to prevent NaNs
+            if (rocketGroup.position.lengthSq() < 0.001) {
+                voxelMat.uniforms.lightDir.value.set(1, 1, 0.5).normalize();
+            } else {
+                voxelMat.uniforms.lightDir.value.copy(rocketGroup.position).normalize();
+            }
+
+            // Render Contrails
+            contrailMeshMat.uniforms.texturePosition.value = cCurrentPos.texture;
+            contrailMeshMat.uniforms.textureVelocity.value = cCurrentVel.texture;
+
+            if (rocketGroup.position.lengthSq() < 0.001) {
+                contrailMeshMat.uniforms.lightDir.value.set(1, 1, 0.5).normalize();
+            } else {
+                contrailMeshMat.uniforms.lightDir.value.copy(rocketGroup.position).normalize();
+            }
+
+            contrailMeshMat.uniforms.uSunColor.value.set(params.uSunColor);
+
+            composer.render();
+
+            iter++;
+            stats.end();
+        }
+
+        render();
+
+        // Responsive Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+
+</html>
