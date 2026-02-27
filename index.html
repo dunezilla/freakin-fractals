@@ -548,6 +548,14 @@
                         type="checkbox" id="tails-toggle"></label>
             </div>
             <div class="control-group">
+                <label for="tail-mode">Tail Mode:</label>
+                <select id="tail-mode">
+                    <option value="smooth">Smooth (Geometric)</option>
+                    <option value="ribbon">Ribbon (Batched)</option>
+                    <option value="persistence">Persistence (Blur)</option>
+                </select>
+            </div>
+            <div class="control-group">
                 <label for="tail-length">Tail Length: <span id="tail-length-val">20</span></label>
                 <input type="range" id="tail-length" min="5" max="100" step="1" value="20">
             </div>
@@ -777,9 +785,14 @@
 
                     glowContainer.filters = [diamondBlur, saturationMatrix];
                     glowContainer.alpha = 0.5;
-                    // diamondTexture and glowTexture are now generated below
 
-                    const texGraphics = new PIXI.Graphics();
+                    // Persistence (Blur) Mode Setup
+                    let persistenceActive = false;
+                    let trailRT1 = PIXI.RenderTexture.create({ width: app.screen.width, height: app.screen.height });
+                    let trailRT2 = PIXI.RenderTexture.create({ width: app.screen.width, height: app.screen.height });
+                    const trailSprite = new PIXI.Sprite(trailRT1);
+                    trailSprite.blendMode = 'additive';
+                    app.stage.addChildAt(trailSprite, 0);
                     texGraphics.poly([-5, 0, 0, -8, 5, 0, 0, 8]).fill(0xFFFFFF);
                     const diamondTexture = app.renderer.generateTexture({ target: texGraphics });
 
@@ -921,6 +934,7 @@
                         attractor: false,
                         wind: false,
                         tails: false,
+                        'tail-mode': 'smooth',
                         'tail-length': 20,
                         brushType: 'off',
                         'hide-brushes': false,
@@ -1935,6 +1949,127 @@
                                 fire: false,
                                 rain: false
                             }
+                        },
+                        // --- 30 NEW CHAOS SCENES ---
+                        {
+                            name: 'Ghost in the Machine',
+                            config: { engineTimeScale: 0.5, size: 2.5, chromatic: true, virus: true, tails: true, 'tail-length': 15, 'bg-hue': 280, 'glow-luminance': 0.1, symmetry: 2 }
+                        },
+                        {
+                            name: 'Nebula Drift',
+                            config: { engineTimeScale: 0.3, size: 8.0, additive: true, 'diamond-bloom': 35, 'glow-luminance': 0.15, 'bg-hue': 220, flow: true, depth3D: true, 'tail-length': 40, tails: true }
+                        },
+                        {
+                            name: 'Supernova Remnant',
+                            config: { engineTimeScale: 1.5, size: 5.0, additive: true, shockwave: true, chromatic: true, 'bg-hue': 15, 'diamond-bloom': 30, 'glow-luminance': 0.2, fire: true }
+                        },
+                        {
+                            name: 'Cyberpunk Rain',
+                            config: { engineTimeScale: 1.2, size: 3.5, rain: true, chromatic: true, 'bg-hue': 300, color: true, trail: true, 'tail-length': 25, tails: true }
+                        },
+                        {
+                            name: 'Bioluminescent Tide',
+                            config: { engineTimeScale: 0.6, size: 6.5, kinetic: true, fluid: true, 'bg-hue': 160, 'diamond-bloom': 25, 'glow-luminance': 0.1, symmetry: 2, tails: true }
+                        },
+                        {
+                            name: 'Digital Sandstorm',
+                            config: { engineTimeScale: 2.0, size: 1.5, wind: true, 'bg-hue': 40, color: true, additive: false, 'glow-luminance': 0.02, trail: false }
+                        },
+                        {
+                            name: 'Vortex of Souls',
+                            config: { engineTimeScale: 0.8, size: 4.0, vortex: true, well: true, 'bg-hue': 260, 'diamond-bloom': 20, 'glow-luminance': 0.08, tails: true, 'tail-length': 50 }
+                        },
+                        {
+                            name: 'Acid Lake',
+                            config: { engineTimeScale: 0.4, size: 10.0, fluid: true, hive: true, 'bg-hue': 80, color: true, 'glow-luminance': 0.12, trail: true, metaball: true }
+                        },
+                        {
+                            name: 'Prism Overload',
+                            config: { engineTimeScale: 1.1, size: 5.5, chromatic: true, color: true, 'bg-hue': 0, symmetry: 3, additive: true, shockwave: true }
+                        },
+                        {
+                            name: 'Frozen Echo',
+                            config: { engineTimeScale: 0.2, size: 3.0, rain: true, 'light-mode': true, 'bg-hue': 200, trail: true, 'tail-length': 80, tails: true, 'glow-luminance': 0.01 }
+                        },
+                        {
+                            name: 'Vector Field',
+                            config: { engineTimeScale: 1.0, size: 2.0, flow: true, wind: true, 'bg-hue': 180, fill: false, trail: true, 'tail-length': 30, tails: true }
+                        },
+                        {
+                            name: 'Molten Core',
+                            config: { engineTimeScale: 0.9, size: 7.0, fire: true, well: true, 'bg-hue': 10, 'diamond-bloom': 28, 'glow-luminance': 0.15, additive: true }
+                        },
+                        {
+                            name: 'Hyper-Geometric',
+                            config: { engineTimeScale: 0.7, size: 4.5, symmetry: 3, depth3D: true, 'bg-hue': 320, color: false, additive: false, fill: true }
+                        },
+                        {
+                            name: 'Obsidian Flow',
+                            config: { engineTimeScale: 0.5, size: 5.5, hive: true, fluid: true, 'bg-hue': 0, 'light-mode': false, chromatic: false, 'glow-luminance': 0.05, tails: true }
+                        },
+                        {
+                            name: 'Stardust Symphony',
+                            config: { engineTimeScale: 0.4, size: 2.5, flock: true, additive: true, 'bg-hue': 240, 'diamond-bloom': 40, 'glow-luminance': 0.05, tails: true }
+                        },
+                        {
+                            name: 'Glitch Grid',
+                            config: { engineTimeScale: 1.8, size: 3.0, virus: true, chromatic: true, shockwave: true, 'bg-hue': 280, color: true, symmetry: 1 }
+                        },
+                        {
+                            name: 'Solar Flare',
+                            config: { engineTimeScale: 1.4, size: 8.0, fire: true, wind: true, 'bg-hue': 30, 'diamond-bloom': 35, 'glow-luminance': 0.2, additive: true }
+                        },
+                        {
+                            name: 'Deep Sea Horror',
+                            config: { engineTimeScale: 0.3, size: 12.0, fluid: true, vortex: true, 'bg-hue': 230, chromatic: true, virus: true, 'glow-luminance': 0.08, tails: true }
+                        },
+                        {
+                            name: 'Emerald Weave',
+                            config: { engineTimeScale: 0.6, size: 4.0, flow: true, hive: true, 'bg-hue': 120, 'diamond-bloom': 20, 'glow-luminance': 0.06, tails: true, 'tail-length': 60 }
+                        },
+                        {
+                            name: 'Crimson Void',
+                            config: { engineTimeScale: 0.8, size: 6.0, well: true, attractor: true, 'bg-hue': 0, 'glow-luminance': 0.1, shockwave: true, tails: true }
+                        },
+                        {
+                            name: 'Electric Dreams',
+                            config: { engineTimeScale: 1.1, size: 3.5, kinetic: true, chromatic: true, 'bg-hue': 290, 'diamond-bloom': 25, 'glow-luminance': 0.15, additive: true, tails: true }
+                        },
+                        {
+                            name: 'Zen Garden',
+                            config: { engineTimeScale: 0.1, size: 5.0, flow: true, 'light-mode': true, 'bg-hue': 60, fill: false, trail: true, 'tail-length': 100, tails: true }
+                        },
+                        {
+                            name: 'Matrix Overload',
+                            config: { engineTimeScale: 1.5, size: 2.0, virus: true, rain: true, color: true, 'bg-hue': 100, chromatic: false, trail: true }
+                        },
+                        {
+                            name: 'Cosmic Jellyfish',
+                            config: { engineTimeScale: 0.5, size: 14.0, fluid: true, depth3D: true, 'bg-hue': 270, 'diamond-bloom': 30, 'glow-luminance': 0.1, tails: true, 'tail-length': 45 }
+                        },
+                        {
+                            name: 'Infernal Engine',
+                            config: { engineTimeScale: 1.6, size: 4.5, fire: true, shockwave: true, chromatic: true, 'bg-hue': 5, color: true, additive: true }
+                        },
+                        {
+                            name: 'Polaris Drift',
+                            config: { engineTimeScale: 0.2, size: 3.5, wind: true, flock: true, 'bg-hue': 190, 'light-mode': false, 'diamond-bloom': 20, tails: true }
+                        },
+                        {
+                            name: 'Amethyst Storm',
+                            config: { engineTimeScale: 1.3, size: 6.5, rain: true, shockwave: true, 'bg-hue': 280, chromatic: true, 'diamond-bloom': 25, additive: true }
+                        },
+                        {
+                            name: 'Copper Wire',
+                            config: { engineTimeScale: 0.7, size: 1.5, hive: true, flow: true, 'bg-hue': 30, color: true, additive: false, trail: true, 'tail-length': 70, tails: true }
+                        },
+                        {
+                            name: 'Neon Rain',
+                            config: { engineTimeScale: 1.0, size: 4.0, rain: true, color: true, 'bg-hue': 330, chromatic: true, trail: true, tails: true }
+                        },
+                        {
+                            name: 'Void Walker',
+                            config: { engineTimeScale: 0.4, size: 5.5, well: true, hive: true, 'bg-hue': 250, 'glow-luminance': 0.12, trail: true, metaball: true, tails: true }
                         }
                     ];
 
@@ -1952,6 +2087,7 @@
                                 value = Math.round(value / step) * step;
                             }
                         }
+                        return value;
                     }
 
                     // --- Config Save/Load Logic ---
@@ -2059,15 +2195,27 @@
 
                     function applyChaosPreset(preset) {
                         const config = preset.config || {};
-
                         const performanceCritical = ['density', 'distance', 'max-neighbors', 'density-threshold', 'engineTimeScale'];
+
+                        // First, ensure ALL toggles are set (on or off) based on the preset
+                        toggles.forEach(toggleId => {
+                            const key = toggleId.replace('-toggle', '');
+                            const toggleEl = document.getElementById(toggleId);
+                            if (toggleEl) {
+                                // If the preset has the key, use it. Otherwise, turn it OFF.
+                                const newState = !!config[key];
+                                toggleEl.checked = newState;
+                                toggleEl.dispatchEvent(new Event('change'));
+                            }
+                        });
 
                         Object.keys(config).forEach(key => {
                             if (performanceCritical.includes(key)) return; // Skip performance-heavy settings
 
-                            const sliderEl = document.getElementById(key);
-                            const toggleEl = document.getElementById(key + '-toggle');
+                            // Toggles are already handled above by iterating through the toggles array
+                            if (toggles.includes(key + '-toggle')) return;
 
+                            const sliderEl = document.getElementById(key);
                             if (sliderEl && sliderEl.type === 'range') {
                                 let value = jitterSliderValue(config[key], sliderEl);
 
@@ -2079,9 +2227,6 @@
 
                                 sliderEl.value = value;
                                 sliderEl.dispatchEvent(new Event('input'));
-                            } else if (toggleEl && toggleEl.type === 'checkbox') {
-                                toggleEl.checked = !!config[key];
-                                toggleEl.dispatchEvent(new Event('change'));
                             } else if (key in settings) {
                                 settings[key] = config[key];
                             }
@@ -2166,6 +2311,12 @@
                                 settings.wrap = false; document.getElementById('wrap-toggle').checked = false;
                             }
 
+                            if (key === 'tails' && settings.tails && settings['tail-mode'] === 'persistence') {
+                                persistenceActive = true;
+                            } else if (key === 'tails' && !settings.tails) {
+                                persistenceActive = false;
+                            }
+
                             if (key === 'virus') handleVirusToggle(e.target.checked);
                             if (key === 'light-mode') updateBackgroundColor();
 
@@ -2186,6 +2337,15 @@
                                 }
                             }
                         });
+                    });
+
+                    document.getElementById('tail-mode').addEventListener('change', (e) => {
+                        settings['tail-mode'] = e.target.value;
+                        if (settings.tails && settings['tail-mode'] === 'persistence') {
+                            persistenceActive = true;
+                        } else {
+                            persistenceActive = false;
+                        }
                     });
 
                     document.getElementById('chaos-btn').addEventListener('click', () => {
@@ -3118,6 +3278,21 @@
                         } else {
                             document.body.style.filter = "none";
 
+                            // Persistence (Blur) Mode Feedback Loop
+                            if (persistenceActive) {
+                                let temp = trailRT1;
+                                trailRT1 = trailRT2;
+                                trailRT2 = temp;
+                                trailSprite.texture = trailRT1;
+                                app.renderer.render({ container: app.stage, target: trailRT2, clear: false });
+                                const feedbackSprite = new PIXI.Sprite(trailRT1);
+                                feedbackSprite.alpha = 0.94;
+                                app.renderer.render({ container: feedbackSprite, target: trailRT2, clear: false });
+                                trailSprite.visible = true;
+                            } else {
+                                trailSprite.visible = false;
+                            }
+
                             // RECORD STATE
                             let currentState = {
                                 particles: diamonds.map(d => ({ x: d.x, y: d.y, z: d.z || 0, vx: d.vx, vy: d.vy, vz: d.vz || 0 })),
@@ -3126,468 +3301,477 @@
                             };
                             historyBuffer.push(currentState);
                             if (historyBuffer.length > MAX_HISTORY_FRAMES) historyBuffer.shift();
+                        }
 
-                            if (settings['pulse-speed'] > 0) {
-                                pulsePhase += 0.02 * settings['pulse-speed'];
-                            }
+                        if (settings['pulse-speed'] > 0) {
+                            pulsePhase += 0.02 * settings['pulse-speed'];
+                        }
 
-                            if (settings.rain && Math.random() < 0.08) {
-                                triggerRainDrop(Math.random() * app.screen.width, Math.random() * app.screen.height);
-                            }
+                        if (settings.rain && Math.random() < 0.08) {
+                            triggerRainDrop(Math.random() * app.screen.width, Math.random() * app.screen.height);
+                        }
 
-                            fadeLayer.clear();
-                            if (settings.trail) {
-                                fadeLayer.rect(0, 0, app.screen.width, app.screen.height).fill({ color: currentBgHex, alpha: 0.15 });
-                            } else {
-                                fadeLayer.rect(0, 0, app.screen.width, app.screen.height).fill(currentBgHex);
-                            }
+                        fadeLayer.clear();
+                        if (settings.trail) {
+                            fadeLayer.rect(0, 0, app.screen.width, app.screen.height).fill({ color: currentBgHex, alpha: 0.15 });
+                        } else {
+                            fadeLayer.rect(0, 0, app.screen.width, app.screen.height).fill(currentBgHex);
+                        }
 
-                            // Render Painted Nodes
-                            if (!settings['hide-brushes']) {
-                                if (paintedNodes.length > 0) {
-                                    paintedNodes.forEach(node => {
-                                        let nodeColor = settings.colors.core;
-                                        if (node.type === 'repulsor') nodeColor = 0xff3333; // Red
-                                        else if (node.type === 'mag-north') nodeColor = 0xff3333; // Red (+)
-                                        else if (node.type === 'mag-south') nodeColor = 0x3333ff; // Blue (-)
-                                        else if (node.type === 'vortex-cw') nodeColor = 0xaa33ff; // Purple
-                                        else if (node.type === 'vortex-ccw') nodeColor = 0xff33aa; // Pink
+                        // Render Painted Nodes
+                        if (!settings['hide-brushes']) {
+                            if (paintedNodes.length > 0) {
+                                paintedNodes.forEach(node => {
+                                    let nodeColor = settings.colors.core;
+                                    if (node.type === 'repulsor') nodeColor = 0xff3333; // Red
+                                    else if (node.type === 'mag-north') nodeColor = 0xff3333; // Red (+)
+                                    else if (node.type === 'mag-south') nodeColor = 0x3333ff; // Blue (-)
+                                    else if (node.type === 'vortex-cw') nodeColor = 0xaa33ff; // Purple
+                                    else if (node.type === 'vortex-ccw') nodeColor = 0xff33aa; // Pink
 
-                                        fadeLayer.circle(node.x, node.y, 4).fill({ color: nodeColor, alpha: 0.8 });
-                                    });
-                                }
-
-                                // Render Eraser Cursor Indicator
-                                if (settings.brushType === 'eraser') {
-                                    fadeLayer.circle(mouse.x, mouse.y, 40).stroke({ width: 2, color: 0xffaa00, alpha: 0.8 });
-                                }
-                            }
-
-
-
-                            glowContainer.blendMode = 'add';
-                            particleContainer.blendMode = settings.additive ? 'add' : 'normal';
-                            webGraphics.blendMode = settings.additive ? 'add' : 'normal';
-                            shockwaveGraphics.blendMode = settings.chromatic || settings.additive ? 'add' : 'normal';
-
-                            let sx = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
-                            let sy = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
-                            mainStage.x = sx - (settings.parallax ? gyro.x : 0);
-                            mainStage.y = sy - (settings.parallax ? gyro.y : 0);
-                            if (screenShake > 0) screenShake *= 0.8;
-
-                            settings.engineTimeScale += (1.0 - settings.engineTimeScale) * 0.02;
-
-                            if (hyperspaceCooldown > 0) {
-                                hyperspaceCooldown -= 0.015 * settings.engineTimeScale;
-                                if (hyperspaceCooldown <= 0) {
-                                    hyperspaceCooldown = 0;
-                                    hyperspaceActive = false;
-                                }
-                            }
-
-                            // --- Audio Reactivity Logic ---
-                            let audioBass = 0;
-                            let audioHigh = 0;
-                            let audioAvg = 0;
-
-                            if (isAudioInitialized && settings.audio && micAnalyser) {
-                                micAnalyser.getByteFrequencyData(audioDataArray);
-
-                                // Calculate bass (lower frequencies, e.g. bins 0-10)
-                                for (let i = 0; i < 10; i++) audioBass += audioDataArray[i];
-                                audioBass = (audioBass / 10) / 255.0; // Normalize 0-1
-
-                                // Calculate highs (e.g. bins 80-120)
-                                for (let i = 80; i < 120; i++) audioHigh += audioDataArray[i];
-                                audioHigh = (audioHigh / 40) / 255.0;
-
-                                // Calculate overall average
-                                for (let i = 0; i < audioDataArray.length; i++) audioAvg += audioDataArray[i];
-                                audioAvg = (audioAvg / audioDataArray.length) / 255.0;
-
-                                // Apply Sensitivity Slider
-                                audioBass = Math.min(1.0, audioBass * settings['audio-sensitivity']);
-                                audioHigh = Math.min(1.0, audioHigh * settings['audio-sensitivity']);
-                                audioAvg = Math.min(1.0, audioAvg * settings['audio-sensitivity']);
-
-                                // Smooth out the audio signals to prevent flickering
-                                smoothedBass += (audioBass - smoothedBass) * 0.15;
-                                smoothedAvg += (audioAvg - smoothedAvg) * 0.1;
-
-                                // Modulate Visuals based on Audio (Smoothed)
-                                // Set glow radius size explicitly to 7
-                                diamondBlur.blur = 7;
-
-                                // Allow glow luminance opacity to go from .03 to .1
-                                let targetAlpha = 0.03 + (smoothedBass * 0.07);
-                                glowContainer.alpha = Math.min(Math.max(targetAlpha, 0.03), 0.1);
-                                // Accelerate particles when the overall volume is high
-                                if (smoothedAvg > 0.1) {
-                                    settings.engineTimeScale = 1.0 + (smoothedAvg * 1.5);
-                                }
-
-                                // Trigger Hyperspace on massive bass drops!
-                                if (audioBass > 0.90 && !hyperspaceActive && hyperspaceCooldown === 0) {
-                                    triggerHyperspace();
-                                }
-
-                                // Randomly trigger erratic scattering on high-hat/snare hits
-                                if (audioHigh > 0.5) {
-                                    let scatterForce = audioHigh * 8.0;
-                                    diamonds.forEach(d => {
-                                        // Only scatter a small percentage of particles at a time
-                                        if (Math.random() > 0.8) {
-                                            // Some pixels scatter faster/farther than others
-                                            let intensity = Math.random() * scatterForce;
-                                            d.vx += (Math.random() - 0.5) * intensity;
-                                            d.vy += (Math.random() - 0.5) * intensity;
-                                        }
-                                    });
-                                }
-                            }
-
-                            shockwaveGraphics.clear();
-
-                            // --- Lightning Storm Logic ---
-                            if (settings.lightning && diamonds.length > 0) {
-                                // Random chance to spawn a new lightning bolt
-                                if (Math.random() < 0.05) { // 5% chance per frame
-                                    let startNode = diamonds[Math.floor(Math.random() * diamonds.length)];
-                                    let pathLength = Math.floor(Math.random() * 15) + 5; // 5 to 20 segments
-                                    let path = [startNode];
-                                    let current = startNode;
-
-                                    // Random walk through nearby neighbors to build the path
-                                    for (let i = 0; i < pathLength; i++) {
-                                        // Find neighbors within a reasonable distance (e.g. 150px)
-                                        let neighbors = diamonds.filter(d =>
-                                            d !== current &&
-                                            !path.includes(d) &&
-                                            Math.hypot(d.x - current.x, d.y - current.y) < 150
-                                        );
-
-                                        if (neighbors.length > 0) {
-                                            // Pick a random neighbor
-                                            current = neighbors[Math.floor(Math.random() * neighbors.length)];
-                                            path.push(current);
-                                        } else {
-                                            break; // Dead end
-                                        }
-                                    }
-
-                                    if (path.length > 2) {
-                                        activeLightnings.push({ path: path, life: 1.0, hasExploded: false });
-
-                                        // Optional: play a subtle zap sound for large strikes
-                                        if (settings.audio && isAudioInitialized && path.length > 10) {
-                                            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                                            if (audioCtx.state === 'suspended') audioCtx.resume();
-                                            let osc = audioCtx.createOscillator();
-                                            let gain = audioCtx.createGain();
-                                            osc.type = 'sawtooth';
-                                            osc.frequency.setValueAtTime(400 + Math.random() * 400, audioCtx.currentTime);
-                                            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
-                                            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                                            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                                            osc.connect(gain);
-                                            gain.connect(audioCtx.destination);
-                                            osc.start();
-                                            osc.stop(audioCtx.currentTime + 0.1);
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Render and manage active lightnings
-                            for (let i = activeLightnings.length - 1; i >= 0; i--) {
-                                let l = activeLightnings[i];
-                                l.life -= 0.05; // Fades out over 20 frames
-
-                                if (l.life <= 0) {
-                                    activeLightnings.splice(i, 1);
-                                    continue;
-                                }
-
-                                // Draw the lightning path
-                                // Life goes from 1.0 down to 0. We want it to grow to full length midway, then retract.
-                                let progress = 1.0 - Math.abs((l.life - 0.5) * 2); // 0 -> 1 -> 0 curve
-                                let visibleSegments = Math.max(1, Math.floor(l.path.length * progress));
-
-                                shockwaveGraphics.moveTo(l.path[0].x, l.path[0].y);
-
-                                for (let j = 1; j < visibleSegments; j++) {
-                                    // Add jitter to the lightning points
-                                    let jitterX = (Math.random() - 0.5) * 8;
-                                    let jitterY = (Math.random() - 0.5) * 8;
-                                    shockwaveGraphics.lineTo(l.path[j].x + jitterX, l.path[j].y + jitterY);
-                                }
-                                shockwaveGraphics.stroke({ width: 3, color: 0xbdffff, alpha: l.life * 0.9 });
-
-                                // Add an explosive scatter effect to the end node when lightning hits full length
-                                if (progress > 0.9 && !l.hasExploded) {
-                                    l.hasExploded = true;
-                                    let endNode = l.path[l.path.length - 1];
-
-                                    // Push away nearby particles
-                                    diamonds.forEach(d => {
-                                        if (d !== endNode) {
-                                            let dx = d.x - endNode.x;
-                                            let dy = d.y - endNode.y;
-                                            let distSq = dx * dx + dy * dy;
-                                            if (distSq < 15000) { // approx 122px radius
-                                                let force = (15000 - distSq) / 15000;
-                                                d.vx += (dx / Math.sqrt(distSq)) * force * 80; // massive pop
-                                                d.vy += (dy / Math.sqrt(distSq)) * force * 80;
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-
-                            let boidGrid = {};
-                            let boidCell = 70;
-                            if (!rewindActive && (settings.flock || settings.fluid || (paintedNodes.length > 0 && settings['emitter-gravity'] > 0))) {
-                                // Combine diamonds and paintedNodes for structural interaction
-                                [...diamonds, ...paintedNodes].forEach(d => {
-                                    let key = Math.floor(d.x / boidCell) + ',' + Math.floor(d.y / boidCell);
-                                    if (!boidGrid[key]) boidGrid[key] = [];
-                                    boidGrid[key].push(d);
+                                    fadeLayer.circle(node.x, node.y, 4).fill({ color: nodeColor, alpha: 0.8 });
                                 });
                             }
 
-                            let centerX = app.screen.width / 2;
-                            let centerY = app.screen.height / 2;
+                            // Render Eraser Cursor Indicator
+                            if (settings.brushType === 'eraser') {
+                                fadeLayer.circle(mouse.x, mouse.y, 40).stroke({ width: 2, color: 0xffaa00, alpha: 0.8 });
+                            }
+                        }
 
-                            diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
 
-                            webGraphics.clear();
 
-                            // --- Particle Tails Rendering ---
-                            if (settings.tails) {
-                                const getWiggle = (p, idx, historyLen) => {
-                                    let t = animationTime * 3.0 - idx * 0.1;
-                                    let s = 0.005;
-                                    let wx = Math.sin(p.x * s + t) * Math.cos(p.y * s - t) * 15;
-                                    let wy = Math.cos(p.x * s - t * 0.8) * Math.sin(p.y * s + t * 1.2) * 15;
-                                    let intensity = (idx / historyLen);
-                                    return { x: wx * intensity, y: wy * intensity };
-                                };
+                        glowContainer.blendMode = 'add';
+                        particleContainer.blendMode = settings.additive ? 'add' : 'normal';
+                        webGraphics.blendMode = settings.additive ? 'add' : 'normal';
+                        shockwaveGraphics.blendMode = settings.chromatic || settings.additive ? 'add' : 'normal';
 
+                        let sx = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+                        let sy = settings.chromatic && screenShake > 0 ? (Math.random() - 0.5) * screenShake : 0;
+                        mainStage.x = sx - (settings.parallax ? gyro.x : 0);
+                        mainStage.y = sy - (settings.parallax ? gyro.y : 0);
+                        if (screenShake > 0) screenShake *= 0.8;
+
+                        settings.engineTimeScale += (1.0 - settings.engineTimeScale) * 0.02;
+
+                        if (hyperspaceCooldown > 0) {
+                            hyperspaceCooldown -= 0.015 * settings.engineTimeScale;
+                            if (hyperspaceCooldown <= 0) {
+                                hyperspaceCooldown = 0;
+                                hyperspaceActive = false;
+                            }
+                        }
+
+                        // --- Audio Reactivity Logic ---
+                        let audioBass = 0;
+                        let audioHigh = 0;
+                        let audioAvg = 0;
+
+                        if (isAudioInitialized && settings.audio && micAnalyser) {
+                            micAnalyser.getByteFrequencyData(audioDataArray);
+
+                            // Calculate bass (lower frequencies, e.g. bins 0-10)
+                            for (let i = 0; i < 10; i++) audioBass += audioDataArray[i];
+                            audioBass = (audioBass / 10) / 255.0; // Normalize 0-1
+
+                            // Calculate highs (e.g. bins 80-120)
+                            for (let i = 80; i < 120; i++) audioHigh += audioDataArray[i];
+                            audioHigh = (audioHigh / 40) / 255.0;
+
+                            // Calculate overall average
+                            for (let i = 0; i < audioDataArray.length; i++) audioAvg += audioDataArray[i];
+                            audioAvg = (audioAvg / audioDataArray.length) / 255.0;
+
+                            // Apply Sensitivity Slider
+                            audioBass = Math.min(1.0, audioBass * settings['audio-sensitivity']);
+                            audioHigh = Math.min(1.0, audioHigh * settings['audio-sensitivity']);
+                            audioAvg = Math.min(1.0, audioAvg * settings['audio-sensitivity']);
+
+                            // Smooth out the audio signals to prevent flickering
+                            smoothedBass += (audioBass - smoothedBass) * 0.15;
+                            smoothedAvg += (audioAvg - smoothedAvg) * 0.1;
+
+                            // Modulate Visuals based on Audio (Smoothed)
+                            // Set glow radius size explicitly to 7
+                            diamondBlur.blur = 7;
+
+                            // Allow glow luminance opacity to go from .03 to .1
+                            let targetAlpha = 0.03 + (smoothedBass * 0.07);
+                            glowContainer.alpha = Math.min(Math.max(targetAlpha, 0.03), 0.1);
+                            // Accelerate particles when the overall volume is high
+                            if (smoothedAvg > 0.1) {
+                                settings.engineTimeScale = 1.0 + (smoothedAvg * 1.5);
+                            }
+
+                            // Trigger Hyperspace on massive bass drops!
+                            if (audioBass > 0.90 && !hyperspaceActive && hyperspaceCooldown === 0) {
+                                triggerHyperspace();
+                            }
+
+                            // Randomly trigger erratic scattering on high-hat/snare hits
+                            if (audioHigh > 0.5) {
+                                let scatterForce = audioHigh * 8.0;
                                 diamonds.forEach(d => {
-                                    if (d.history.length < 2) return;
+                                    // Only scatter a small percentage of particles at a time
+                                    if (Math.random() > 0.8) {
+                                        // Some pixels scatter faster/farther than others
+                                        let intensity = Math.random() * scatterForce;
+                                        d.vx += (Math.random() - 0.5) * intensity;
+                                        d.vy += (Math.random() - 0.5) * intensity;
+                                    }
+                                });
+                            }
+                        }
 
-                                    let tailColor = settings.color ? d.colorHex : settings.colors.line;
-                                    let historyLen = d.history.length;
+                        shockwaveGraphics.clear();
 
-                                    for (let i = 0; i < historyLen - 1; i++) {
+                        // --- Lightning Storm Logic ---
+                        if (settings.lightning && diamonds.length > 0) {
+                            // Random chance to spawn a new lightning bolt
+                            if (Math.random() < 0.05) { // 5% chance per frame
+                                let startNode = diamonds[Math.floor(Math.random() * diamonds.length)];
+                                let pathLength = Math.floor(Math.random() * 15) + 5; // 5 to 20 segments
+                                let path = [startNode];
+                                let current = startNode;
+
+                                // Random walk through nearby neighbors to build the path
+                                for (let i = 0; i < pathLength; i++) {
+                                    // Find neighbors within a reasonable distance (e.g. 150px)
+                                    let neighbors = diamonds.filter(d =>
+                                        d !== current &&
+                                        !path.includes(d) &&
+                                        Math.hypot(d.x - current.x, d.y - current.y) < 150
+                                    );
+
+                                    if (neighbors.length > 0) {
+                                        // Pick a random neighbor
+                                        current = neighbors[Math.floor(Math.random() * neighbors.length)];
+                                        path.push(current);
+                                    } else {
+                                        break; // Dead end
+                                    }
+                                }
+
+                                if (path.length > 2) {
+                                    activeLightnings.push({ path: path, life: 1.0, hasExploded: false });
+
+                                    // Optional: play a subtle zap sound for large strikes
+                                    if (settings.audio && isAudioInitialized && path.length > 10) {
+                                        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                                        let osc = audioCtx.createOscillator();
+                                        let gain = audioCtx.createGain();
+                                        osc.type = 'sawtooth';
+                                        osc.frequency.setValueAtTime(400 + Math.random() * 400, audioCtx.currentTime);
+                                        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                                        osc.connect(gain);
+                                        gain.connect(audioCtx.destination);
+                                        osc.start();
+                                        osc.stop(audioCtx.currentTime + 0.1);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Render and manage active lightnings
+                        for (let i = activeLightnings.length - 1; i >= 0; i--) {
+                            let l = activeLightnings[i];
+                            l.life -= 0.05; // Fades out over 20 frames
+
+                            if (l.life <= 0) {
+                                activeLightnings.splice(i, 1);
+                                continue;
+                            }
+
+                            // Draw the lightning path
+                            // Life goes from 1.0 down to 0. We want it to grow to full length midway, then retract.
+                            let progress = 1.0 - Math.abs((l.life - 0.5) * 2); // 0 -> 1 -> 0 curve
+                            let visibleSegments = Math.max(1, Math.floor(l.path.length * progress));
+
+                            shockwaveGraphics.moveTo(l.path[0].x, l.path[0].y);
+
+                            for (let j = 1; j < visibleSegments; j++) {
+                                // Add jitter to the lightning points
+                                let jitterX = (Math.random() - 0.5) * 8;
+                                let jitterY = (Math.random() - 0.5) * 8;
+                                shockwaveGraphics.lineTo(l.path[j].x + jitterX, l.path[j].y + jitterY);
+                            }
+                            shockwaveGraphics.stroke({ width: 3, color: 0xbdffff, alpha: l.life * 0.9 });
+
+                            // Add an explosive scatter effect to the end node when lightning hits full length
+                            if (progress > 0.9 && !l.hasExploded) {
+                                l.hasExploded = true;
+                                let endNode = l.path[l.path.length - 1];
+
+                                // Push away nearby particles
+                                diamonds.forEach(d => {
+                                    if (d !== endNode) {
+                                        let dx = d.x - endNode.x;
+                                        let dy = d.y - endNode.y;
+                                        let distSq = dx * dx + dy * dy;
+                                        if (distSq < 15000) { // approx 122px radius
+                                            let force = (15000 - distSq) / 15000;
+                                            d.vx += (dx / Math.sqrt(distSq)) * force * 80; // massive pop
+                                            d.vy += (dy / Math.sqrt(distSq)) * force * 80;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+
+                        let boidGrid = {};
+                        let boidCell = 70;
+                        if (!rewindActive && (settings.flock || settings.fluid || (paintedNodes.length > 0 && settings['emitter-gravity'] > 0))) {
+                            // Combine diamonds and paintedNodes for structural interaction
+                            [...diamonds, ...paintedNodes].forEach(d => {
+                                let key = Math.floor(d.x / boidCell) + ',' + Math.floor(d.y / boidCell);
+                                if (!boidGrid[key]) boidGrid[key] = [];
+                                boidGrid[key].push(d);
+                            });
+                        }
+
+                        let centerX = app.screen.width / 2;
+                        let centerY = app.screen.height / 2;
+
+                        diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
+
+                        webGraphics.clear();
+
+                        // --- Particle Tails Rendering ---
+                        if (settings.tails && !persistenceActive) {
+                            let historyLen = Math.floor(settings['tail-length'] / 5) || 5;
+                            let mode = settings['tail-mode'];
+
+                            const getWiggle = (p, idx, historyLen) => {
+                                let t = animationTime * 3.0 - idx * 0.1;
+                                let s = 0.005;
+                                let wx = Math.sin(p.x * s + t) * Math.cos(p.y * s - t) * 15;
+                                let wy = Math.cos(p.x * s - t * 0.8) * Math.sin(p.y * s + t * 1.2) * 15;
+                                let intensity = (idx / historyLen);
+                                return { x: wx * intensity, y: wy * intensity };
+                            };
+
+                            diamonds.forEach(d => {
+                                if (d.history.length < 2) return;
+                                let tailColor = settings.color ? d.colorHex : settings.colors.line;
+                                let dHistoryLen = d.history.length;
+
+                                if (mode === 'smooth') {
+                                    // Optimized Geometric: skips segments, fewer lineStyle calls
+                                    for (let i = 0; i < dHistoryLen - 1; i += 2) {
                                         let p1 = d.history[i];
                                         let p2 = d.history[i + 1];
-
-                                        let w1 = getWiggle(p1, i, historyLen);
-                                        let w2 = getWiggle(p2, i + 1, historyLen);
-
-                                        let alpha = (i / historyLen) * 0.4;
-                                        let width = (i / historyLen) * 1.5;
-
-                                        webGraphics.lineStyle(width, tailColor, alpha);
+                                        let w1 = getWiggle(p1, i, dHistoryLen);
+                                        let w2 = getWiggle(p2, i + 1, dHistoryLen);
+                                        let alpha = (i / dHistoryLen) * 0.3;
+                                        webGraphics.lineStyle((i / dHistoryLen) * 1.2, tailColor, alpha);
                                         webGraphics.moveTo(p1.x + w1.x, p1.y + w1.y);
                                         webGraphics.lineTo(p2.x + w2.x, p2.y + w2.y);
                                     }
-                                });
-                            }
-
-                            let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
-                            let effectiveDensityThresh = settings['density-threshold'];
-
-                            if (effectiveMaxNeighbors > 0) {
-                                let maxSq = settings.distance ** 2, cell = settings.distance, grid = {};
-
-                                // Add moving particles into spatial grid
-                                diamonds.forEach((d, i) => {
-                                    let k = Math.floor(d.x / cell) + ',' + Math.floor(d.y / cell);
-                                    if (!grid[k]) grid[k] = [];
-                                    // Store as object { type: 'd', index: i }
-                                    grid[k].push({ type: 'd', index: i });
-                                });
-
-                                // Add painted static nodes into spatial grid
-                                paintedNodes.forEach((p, i) => {
-                                    let k = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
-                                    if (!grid[k]) grid[k] = [];
-                                    // Store as object { type: 'p', index: i }
-                                    grid[k].push({ type: 'p', index: i });
-                                });
-
-                                diamonds.forEach((d1, i) => {
-                                    let gx = Math.floor(d1.x / cell), gy = Math.floor(d1.y / cell), neighbors = [];
-                                    if ((grid[gx + ',' + gy] || []).length > effectiveDensityThresh) return;
-
-                                    for (let x = gx - 1; x <= gx + 1; x++) for (let y = gy - 1; y <= gy + 1; y++) {
-                                        (grid[x + ',' + y] || []).forEach(nodeRef => {
-                                            if (nodeRef.type === 'd' && nodeRef.index <= i) return; // Avoid double checking diamonds
-
-                                            let otherNode = nodeRef.type === 'd' ? diamonds[nodeRef.index] : paintedNodes[nodeRef.index];
-                                            let dx = d1.x - otherNode.x;
-                                            let dy = d1.y - otherNode.y;
-                                            let dSq = dx * dx + dy * dy;
-
-                                            if (dSq < maxSq) {
-                                                neighbors.push({ nodeRef, dSq, otherNode });
-                                                if (settings.virus && nodeRef.type === 'd' && dSq < maxSq * 0.4 && Math.random() > 0.98) {
-                                                    if (d1.infected) diamonds[nodeRef.index].infected = true;
-                                                    else if (diamonds[nodeRef.index].infected) d1.infected = true;
-                                                }
-                                            }
-                                        });
+                                } else if (mode === 'ribbon') {
+                                    // Ribbon: continuous path, single draw call per particle
+                                    webGraphics.lineStyle(1.0, tailColor, 0.2);
+                                    let start = d.history[0];
+                                    webGraphics.moveTo(start.x, start.y);
+                                    for (let i = 1; i < dHistoryLen; i += 3) {
+                                        webGraphics.lineTo(d.history[i].x, d.history[i].y);
                                     }
-
-                                    let closestNeighbors = neighbors.sort((a, b) => a.dSq - b.dSq).slice(0, effectiveMaxNeighbors);
-
-                                    closestNeighbors.forEach((n1, idx) => {
-                                        closestNeighbors.slice(idx + 1).forEach(n2 => {
-                                            let d2 = n1.otherNode, d3 = n2.otherNode, d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
-                                            if (d23Sq < maxSq) {
-                                                let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
-                                                let op = (1 - (distMax / settings.distance)) * 0.4;
-                                                if (settings.additive) op *= 0.3;
-
-                                                // Default glow to 1.0 for painted nodes, otherwise use diamond glow
-                                                let d1Glow = d1.glow || 1.0;
-                                                let d2Glow = d2.glow || 1.0;
-                                                let d3Glow = d3.glow || 1.0;
-                                                if (settings.kinetic) op *= (0.02 + 0.98 * (d1Glow + d2Glow + d3Glow) / 3);
-
-                                                let inf = d1.infected || d2.infected || d3.infected;
-
-                                                let color, fillAlpha, lineAlpha;
-                                                if (settings.fire) {
-                                                    color = inf ? 0xff5064 : (settings.color ? d1.colorHex : 0xb4dcff);
-                                                } else if (settings.color) {
-                                                    color = inf ? 0xff5064 : d1.colorHex;
-                                                } else {
-                                                    color = inf ? 0xff5064 : settings.colors.line;
-                                                }
-
-                                                if (settings.fire) {
-                                                    fillAlpha = 0.1;
-                                                    lineAlpha = op * 3.0;
-                                                } else {
-                                                    fillAlpha = settings.additive ? op * 0.5 : op * 1.5;
-                                                    lineAlpha = op * 2;
-                                                    if (!settings.color && !settings.kinetic) {
-                                                        fillAlpha = settings.additive ? 0.05 : 0.15;
-                                                        lineAlpha = settings.additive ? 0.15 : 0.3;
-                                                    }
-                                                }
-
-                                                let symCount = settings.symmetry === 1 ? 1 : (settings.symmetry === 2 ? 4 : 8);
-                                                let angleStep = (Math.PI * 2) / symCount;
-
-                                                for (let s = 0; s < symCount; s++) {
-                                                    let theta = angleStep * s;
-
-                                                    const rot = (node) => {
-                                                        // Handle dynamically changing between 3D depth and 2D flat coordinates
-                                                        let px = settings.depth3D && node.projX ? node.projX : node.x;
-                                                        let py = settings.depth3D && node.projY ? node.projY : node.y;
-
-                                                        let rx = px - centerX;
-                                                        let ry = py - centerY;
-                                                        return {
-                                                            x: centerX + rx * Math.cos(theta) - ry * Math.sin(theta),
-                                                            y: centerY + rx * Math.sin(theta) + ry * Math.cos(theta)
-                                                        };
-                                                    };
-
-                                                    let p1 = rot(d1);
-                                                    let p2 = rot(d2);
-                                                    let p3 = rot(d3);
-
-                                                    const points = [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
-                                                    const triangle = webGraphics.poly(points, true);
-
-                                                    if (settings.fill) {
-                                                        let fillColor = settings.color ? color : settings.colors.fill;
-                                                        triangle.fill({ color: fillColor, alpha: fillAlpha });
-                                                    }
-                                                    triangle.stroke({ width: 0.5, color: color, alpha: lineAlpha });
-                                                }
-                                            }
-                                        });
-                                    });
-                                });
-                            }
-
-                            shockwaves = shockwaves.filter(sw => {
-                                sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
-
-                                if (settings.chromatic) {
-                                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0xff0000, sw.opacity); shockwaveGraphics.drawCircle(sw.x - 4, sw.y, sw.radius);
-                                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x0064ff, sw.opacity); shockwaveGraphics.drawCircle(sw.x + 4, sw.y, sw.radius);
-                                    shockwaveGraphics.lineStyle(4 * sw.opacity, 0x00ff00, sw.opacity); shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
-                                } else {
-                                    shockwaveGraphics.lineStyle(4 * sw.opacity, sw.infected ? 0xff3232 : 0xb4dcff, sw.opacity);
-                                    shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
                                 }
-                                return sw.opacity > 0;
+                            });
+                        }
+
+                        let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
+                        let effectiveDensityThresh = settings['density-threshold'];
+
+                        if (effectiveMaxNeighbors > 0) {
+                            let maxSq = settings.distance ** 2, cell = settings.distance, grid = {};
+
+                            // Add moving particles into spatial grid
+                            diamonds.forEach((d, i) => {
+                                let k = Math.floor(d.x / cell) + ',' + Math.floor(d.y / cell);
+                                if (!grid[k]) grid[k] = [];
+                                // Store as object { type: 'd', index: i }
+                                grid[k].push({ type: 'd', index: i });
                             });
 
-                            // --- Singularity (Black Hole) Physics & Distortion ---
-                            let activeSingularities = paintedNodes.filter(p => p.type === 'blackhole');
+                            // Add painted static nodes into spatial grid
+                            paintedNodes.forEach((p, i) => {
+                                let k = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
+                                if (!grid[k]) grid[k] = [];
+                                // Store as object { type: 'p', index: i }
+                                grid[k].push({ type: 'p', index: i });
+                            });
 
-                            if (activeSingularities.length > 0) {
-                                let cx = 0, cy = 0;
-                                activeSingularities.forEach((node) => {
-                                    cx += node.x;
-                                    cy += node.y;
+                            diamonds.forEach((d1, i) => {
+                                let gx = Math.floor(d1.x / cell), gy = Math.floor(d1.y / cell), neighbors = [];
+                                if ((grid[gx + ',' + gy] || []).length > effectiveDensityThresh) return;
 
-                                    // Event Horizon Physics
-                                    for (let i = diamonds.length - 1; i >= 0; i--) {
-                                        let d = diamonds[i];
-                                        let dx = d.x - node.x;
-                                        let dy = d.y - node.y;
-                                        let distSq = dx * dx + dy * dy;
+                                for (let x = gx - 1; x <= gx + 1; x++) for (let y = gy - 1; y <= gy + 1; y++) {
+                                    (grid[x + ',' + y] || []).forEach(nodeRef => {
+                                        if (nodeRef.type === 'd' && nodeRef.index <= i) return; // Avoid double checking diamonds
 
-                                        // 1. Annihilation at Event Horizon (Recycle Diamond)
-                                        if (distSq < 1600) { // 40px radius Event Horizon
-                                            if (Math.random() > 0.5) {
-                                                d.x = Math.random() > 0.5 ? 0 : app.screen.width;
-                                                d.y = Math.random() * app.screen.height;
-                                            } else {
-                                                d.x = Math.random() * app.screen.width;
-                                                d.y = Math.random() > 0.5 ? 0 : app.screen.height;
+                                        let otherNode = nodeRef.type === 'd' ? diamonds[nodeRef.index] : paintedNodes[nodeRef.index];
+                                        let dx = d1.x - otherNode.x;
+                                        let dy = d1.y - otherNode.y;
+                                        let dSq = dx * dx + dy * dy;
+
+                                        if (dSq < maxSq) {
+                                            neighbors.push({ nodeRef, dSq, otherNode });
+                                            if (settings.virus && nodeRef.type === 'd' && dSq < maxSq * 0.4 && Math.random() > 0.98) {
+                                                if (d1.infected) diamonds[nodeRef.index].infected = true;
+                                                else if (diamonds[nodeRef.index].infected) d1.infected = true;
                                             }
-                                            d.vx = (Math.random() - 0.5) * 4;
-                                            d.vy = (Math.random() - 0.5) * 4;
-                                            d.glow = 0;
                                         }
-                                        // 2. Accretion Disk Gravity Pull
-                                        else if (distSq < 90000) { // 300px gravity well
-                                            let dist = Math.sqrt(distSq);
-                                            let force = (300 - dist) / 300;
-                                            d.vx -= (dx / dist) * force * 15.0; // Pulls strongly INWARD
-                                            d.vy -= (dy / dist) * force * 15.0;
+                                    });
+                                }
+
+                                let closestNeighbors = neighbors.sort((a, b) => a.dSq - b.dSq).slice(0, effectiveMaxNeighbors);
+
+                                closestNeighbors.forEach((n1, idx) => {
+                                    closestNeighbors.slice(idx + 1).forEach(n2 => {
+                                        let d2 = n1.otherNode, d3 = n2.otherNode, d23Sq = (d2.x - d3.x) ** 2 + (d2.y - d3.y) ** 2;
+                                        if (d23Sq < maxSq) {
+                                            let distMax = Math.sqrt(Math.max(n1.dSq, n2.dSq, d23Sq));
+                                            let op = (1 - (distMax / settings.distance)) * 0.4;
+                                            if (settings.additive) op *= 0.3;
+
+                                            // Default glow to 1.0 for painted nodes, otherwise use diamond glow
+                                            let d1Glow = d1.glow || 1.0;
+                                            let d2Glow = d2.glow || 1.0;
+                                            let d3Glow = d3.glow || 1.0;
+                                            if (settings.kinetic) op *= (0.02 + 0.98 * (d1Glow + d2Glow + d3Glow) / 3);
+
+                                            let inf = d1.infected || d2.infected || d3.infected;
+
+                                            let color, fillAlpha, lineAlpha;
+                                            if (settings.fire) {
+                                                color = inf ? 0xff5064 : (settings.color ? d1.colorHex : 0xb4dcff);
+                                            } else if (settings.color) {
+                                                color = inf ? 0xff5064 : d1.colorHex;
+                                            } else {
+                                                color = inf ? 0xff5064 : settings.colors.line;
+                                            }
+
+                                            if (settings.fire) {
+                                                fillAlpha = 0.1;
+                                                lineAlpha = op * 3.0;
+                                            } else {
+                                                fillAlpha = settings.additive ? op * 0.5 : op * 1.5;
+                                                lineAlpha = op * 2;
+                                                if (!settings.color && !settings.kinetic) {
+                                                    fillAlpha = settings.additive ? 0.05 : 0.15;
+                                                    lineAlpha = settings.additive ? 0.15 : 0.3;
+                                                }
+                                            }
+
+                                            let symCount = settings.symmetry === 1 ? 1 : (settings.symmetry === 2 ? 4 : 8);
+                                            let angleStep = (Math.PI * 2) / symCount;
+
+                                            for (let s = 0; s < symCount; s++) {
+                                                let theta = angleStep * s;
+
+                                                const rot = (node) => {
+                                                    // Handle dynamically changing between 3D depth and 2D flat coordinates
+                                                    let px = settings.depth3D && node.projX ? node.projX : node.x;
+                                                    let py = settings.depth3D && node.projY ? node.projY : node.y;
+
+                                                    let rx = px - centerX;
+                                                    let ry = py - centerY;
+                                                    return {
+                                                        x: centerX + rx * Math.cos(theta) - ry * Math.sin(theta),
+                                                        y: centerY + rx * Math.sin(theta) + ry * Math.cos(theta)
+                                                    };
+                                                };
+
+                                                let p1 = rot(d1);
+                                                let p2 = rot(d2);
+                                                let p3 = rot(d3);
+
+                                                const points = [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
+                                                const triangle = webGraphics.poly(points, true);
+
+                                                if (settings.fill) {
+                                                    let fillColor = settings.color ? color : settings.colors.fill;
+                                                    triangle.fill({ color: fillColor, alpha: fillAlpha });
+                                                }
+                                                triangle.stroke({ width: 0.5, color: color, alpha: lineAlpha });
+                                            }
                                         }
-                                    }
+                                    });
                                 });
+                            });
+                        }
 
-                                // Update Lensing Sprite scale + intensity based on mass
-                                cx /= activeSingularities.length;
-                                cy /= activeSingularities.length;
-                                lensingSprite.x = cx;
-                                lensingSprite.y = cy;
-                                let massScale = Math.min(6, 1 + (activeSingularities.length / 5));
-                                lensingSprite.scale.set(massScale);
-                                lensingFilter.scale.set(120 * massScale);
+                        shockwaves = shockwaves.filter(sw => {
+                            sw.radius += 20 * settings.engineTimeScale; sw.opacity -= 0.04 * settings.engineTimeScale;
 
-                                mainStage.filters = [lensingFilter];
-                                mainStage.filterArea = app.screen;
+                            if (settings.chromatic) {
+                                shockwaveGraphics.lineStyle(4 * sw.opacity, 0xff0000, sw.opacity); shockwaveGraphics.drawCircle(sw.x - 4, sw.y, sw.radius);
+                                shockwaveGraphics.lineStyle(4 * sw.opacity, 0x0064ff, sw.opacity); shockwaveGraphics.drawCircle(sw.x + 4, sw.y, sw.radius);
+                                shockwaveGraphics.lineStyle(4 * sw.opacity, 0x00ff00, sw.opacity); shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
                             } else {
-                                mainStage.filters = null;
-                                mainStage.filterArea = null;
+                                shockwaveGraphics.lineStyle(4 * sw.opacity, sw.infected ? 0xff3232 : 0xb4dcff, sw.opacity);
+                                shockwaveGraphics.drawCircle(sw.x, sw.y, sw.radius);
                             }
-                        } // End of Time Reversal normal frame block
+                            return sw.opacity > 0;
+                        });
+
+                        // --- Singularity (Black Hole) Physics & Distortion ---
+                        let activeSingularities = paintedNodes.filter(p => p.type === 'blackhole');
+
+                        if (activeSingularities.length > 0) {
+                            let cx = 0, cy = 0;
+                            activeSingularities.forEach((node) => {
+                                cx += node.x;
+                                cy += node.y;
+
+                                // Event Horizon Physics
+                                for (let i = diamonds.length - 1; i >= 0; i--) {
+                                    let d = diamonds[i];
+                                    let dx = d.x - node.x;
+                                    let dy = d.y - node.y;
+                                    let distSq = dx * dx + dy * dy;
+
+                                    // 1. Annihilation at Event Horizon (Recycle Diamond)
+                                    if (distSq < 1600) { // 40px radius Event Horizon
+                                        if (Math.random() > 0.5) {
+                                            d.x = Math.random() > 0.5 ? 0 : app.screen.width;
+                                            d.y = Math.random() * app.screen.height;
+                                        } else {
+                                            d.x = Math.random() * app.screen.width;
+                                            d.y = Math.random() > 0.5 ? 0 : app.screen.height;
+                                        }
+                                        d.vx = (Math.random() - 0.5) * 4;
+                                        d.vy = (Math.random() - 0.5) * 4;
+                                        d.glow = 0;
+                                    }
+                                    // 2. Accretion Disk Gravity Pull
+                                    else if (distSq < 90000) { // 300px gravity well
+                                        let dist = Math.sqrt(distSq);
+                                        let force = (300 - dist) / 300;
+                                        d.vx -= (dx / dist) * force * 15.0; // Pulls strongly INWARD
+                                        d.vy -= (dy / dist) * force * 15.0;
+                                    }
+                                }
+                            });
+
+                            // Update Lensing Sprite scale + intensity based on mass
+                            cx /= activeSingularities.length;
+                            cy /= activeSingularities.length;
+                            lensingSprite.x = cx;
+                            lensingSprite.y = cy;
+                            let massScale = Math.min(6, 1 + (activeSingularities.length / 5));
+                            lensingSprite.scale.set(massScale);
+                            lensingFilter.scale.set(120 * massScale);
+
+                            mainStage.filters = [lensingFilter];
+                            mainStage.filterArea = app.screen;
+                        } else {
+                            mainStage.filters = null;
+                            mainStage.filterArea = null;
+                        }
                     });
 
                     updateFilters();
