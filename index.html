@@ -358,6 +358,9 @@
                     Configurations
                     <button id="save-preset-btn" style="width:auto; margin:0; padding:4px 8px; font-size:0.75rem;">💾
                         Save</button>
+                    <button id="share-preset-btn"
+                        style="width:auto; margin:0; padding:4px 8px; font-size:0.75rem; margin-left: 5px; border-color: #00ffcc; color: #00ffcc; background: rgba(0, 255, 204, 0.1);">🔗
+                        Share</button>
                 </h3>
                 <select id="preset-selector"
                     style="width: 100%; padding: 6px; background: #1a1f35; color: #fff; border: 1px solid #88aaff; border-radius: 4px; outline: none; margin-top: 5px;">
@@ -534,7 +537,19 @@
                         id="metaball-toggle"></label>
             </div>
             <div class="control-group">
+                <label for="hive-toggle" class="wow-label" style="color: #00ffaa;">Hive Mind (Curl): <input
+                        type="checkbox" id="hive-toggle"></label>
+            </div>
+            <div class="control-group">
                 <label for="trail-toggle">Motion Trails: <input type="checkbox" id="trail-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="tails-toggle" class="wow-label" style="color: #ffaa00;">Particle Tails: <input
+                        type="checkbox" id="tails-toggle"></label>
+            </div>
+            <div class="control-group">
+                <label for="tail-length">Tail Length: <span id="tail-length-val">20</span></label>
+                <input type="range" id="tail-length" min="5" max="100" step="1" value="20">
             </div>
             <div class="control-group">
                 <label for="fill-toggle">Fill Triangles: <input type="checkbox" id="fill-toggle" checked></label>
@@ -559,10 +574,7 @@
                 <label for="lightning-toggle" class="wow-label" style="color:#00ffff;">Lightning Storm: <input
                         type="checkbox" id="lightning-toggle"></label>
             </div>
-            <div class="control-group">
-                <label for="gol-toggle" class="bloom-label">Conway's Game of Life: <input type="checkbox"
-                        id="gol-toggle"></label>
-            </div>
+
 
             <h3>Interactive Modes</h3>
             <div class="control-group">
@@ -696,69 +708,58 @@
                     // a low-res 2D texture map when the Black Hole displacement filter is active.
                     app.stage.addChild(webGraphics);
 
-                    // --- Metaball Filter Stack ---
-                    // A Custom WebGL Fragment Shader provides mathematically perfect Alpha Thresholding for crisp Metaball edges
-                    const metaballShaderFragGLSL = `
-                precision highp float;
-                in vec2 vTextureCoord;
-                uniform sampler2D uSampler;
-                out vec4 outColor;
-
-                void main(void) {
-                    vec4 color = texture(uSampler, vTextureCoord);
-                    float alpha = color.a;
-                    
-                    // Native glow sprites preserve depth, we gently amplify the overlapping hotspots natively
-                    float density = alpha * 40.0;
-                    
-                    if (density < 1.0) {
-                        outColor = vec4(0.0);
-                    } else {
-                        // Smoothstep provides a 0.5px anti-aliased edge so the blobs aren't jagged
-                        float aa = smoothstep(1.0, 1.2, density);
-                        
-                        // PIXI colors are premultiplied. To make the liquid 100% opaque without washing out,
-                        // we strictly divide the RGB by its alpha map to restore full saturation.
-                        vec3 baseColor = color.rgb / alpha;
-                        outColor = vec4(baseColor * aa, aa);
-                    }
-                }
-            `;
-
-                    const metaballShaderFragWGSL = `
-                @group(0) @binding(1) var uSampler: sampler;
-                @group(0) @binding(2) var uTexture: texture_2d<f32>;
-
-                @fragment
-                fn main(
-                    @location(0) vTextureCoord: vec2<f32>,
-                ) -> @location(0) vec4<f32> {
-                    let color = textureSample(uTexture, uSampler, vTextureCoord);
-                    let alpha = color.a;
-                    
-                    let density = alpha * 40.0;
-                    
-                    if (density < 1.0) {
-                        return vec4<f32>(0.0);
-                    } else {
-                        let aa = smoothstep(1.0, 1.2, density);
-                        let baseColor = color.rgb / alpha;
-                        return vec4<f32>(baseColor * aa, aa);
-                    }
-                }
-            `;
-
                     let metaballThreshold = null;
                     try {
                         metaballThreshold = new PIXI.Filter({
                             gpuProgram: PIXI.GpuProgram.from({
                                 fragment: {
-                                    source: metaballShaderFragWGSL,
+                                    source: `
+                                        @group(0) @binding(1) var uSampler: sampler;
+                                        @group(0) @binding(2) var uTexture: texture_2d<f32>;
+
+                                        @fragment
+                                        fn main(@location(0) vTextureCoord: vec2<f32>) -> @location(0) vec4<f32> {
+                                            let color = textureSample(uTexture, uSampler, vTextureCoord);
+                                            let alpha = color.a;
+                                            let density = alpha * 40.0;
+                                            
+                                            // Aggressive thresholding to clip corner artifacts, especially in WebGL
+                                            if (density < 25.0) {
+                                                discard;
+                                            } else {
+                                                // High-contrast smoothstep for crisp liquid edges
+                                                let aa = smoothstep(25.0, 28.0, density);
+                                                let baseColor = color.rgb / max(alpha, 0.0001);
+                                                return vec4<f32>(baseColor * aa * 1.0, aa);
+                                            }
+                                        }
+                                    `,
                                     entryPoint: 'main',
                                 },
                             }),
                             glProgram: PIXI.GlProgram.from({
-                                fragment: metaballShaderFragGLSL,
+                                fragment: `
+                                    precision highp float;
+                                    in vec2 vTextureCoord;
+                                    uniform sampler2D uSampler;
+                                    out vec4 outColor;
+
+                                    void main(void) {
+                                        vec4 color = texture(uSampler, vTextureCoord);
+                                        float alpha = color.a;
+                                        float density = alpha * 40.0;
+                                        
+                                        // Aggressive thresholding to clip corner artifacts, especially in WebGL
+                                        if (density < 25.0) {
+                                            discard;
+                                        } else {
+                                            // High-contrast smoothstep for crisp liquid edges
+                                            float aa = smoothstep(25.0, 28.0, density);
+                                            vec3 baseColor = color.rgb / max(alpha, 0.0001);
+                                            outColor = vec4(baseColor * aa, aa);
+                                        }
+                                    }
+                                `,
                             })
                         });
                         metaballThreshold.resolution = 1;
@@ -807,13 +808,13 @@
                         return tex;
                     }
 
-                    textureCache.core.blur1 = generateBlurredTexture(diamondTexture, blurFilter1, 4);
-                    textureCache.core.blur2 = generateBlurredTexture(diamondTexture, blurFilter2, 12);
-                    textureCache.core.blur3 = generateBlurredTexture(diamondTexture, blurFilter3, 24);
+                    textureCache.core.blur1 = generateBlurredTexture(diamondTexture, blurFilter1, 8);
+                    textureCache.core.blur2 = generateBlurredTexture(diamondTexture, blurFilter2, 24);
+                    textureCache.core.blur3 = generateBlurredTexture(diamondTexture, blurFilter3, 48);
 
-                    textureCache.glow.blur1 = generateBlurredTexture(glowTexture, blurFilter1, 4);
-                    textureCache.glow.blur2 = generateBlurredTexture(glowTexture, blurFilter2, 12);
-                    textureCache.glow.blur3 = generateBlurredTexture(glowTexture, blurFilter3, 24);
+                    textureCache.glow.blur1 = generateBlurredTexture(glowTexture, blurFilter1, 8);
+                    textureCache.glow.blur2 = generateBlurredTexture(glowTexture, blurFilter2, 24);
+                    textureCache.glow.blur3 = generateBlurredTexture(glowTexture, blurFilter3, 48);
 
                     // --- Gravitational Lensing (Black Hole) ---
                     function createBlackHoleDisplacementTexture(radius) {
@@ -869,8 +870,8 @@
                     lensingFilter.resolution = app.renderer.resolution || window.devicePixelRatio || 1;
                     lensingFilter.padding = 150; // Extra padding to prevent clipping at the edges of the displacement area
 
-                    const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity', 'bokeh-bloom', 'confetti-size'];
-                    const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'confetti-toggle', 'metaball-toggle', 'trail-toggle', 'shockwave-toggle', 'depth3D-toggle', 'bokeh-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle', 'gol-toggle', 'hide-brushes-toggle', 'attractor-toggle', 'wind-toggle'];
+                    const sliders = ['density', 'size', 'distance', 'gravity', 'repel', 'max-neighbors', 'diamond-bloom', 'density-threshold', 'glow-luminance', 'bg-hue', 'pulse-speed', 'symmetry', 'audio-sensitivity', 'emitter-gravity', 'bokeh-bloom', 'confetti-size', 'tail-length'];
+                    const toggles = ['well-toggle', 'vortex-toggle', 'bullet-toggle', 'virus-toggle', 'kinetic-toggle', 'fill-toggle', 'color-toggle', 'confetti-toggle', 'metaball-toggle', 'hive-toggle', 'trail-toggle', 'tails-toggle', 'shockwave-toggle', 'depth3D-toggle', 'bokeh-toggle', 'additive-toggle', 'parallax-toggle', 'chromatic-toggle', 'flow-toggle', 'wrap-toggle', 'light-mode-toggle', 'flock-toggle', 'fluid-toggle', 'fire-toggle', 'rain-toggle', 'audio-toggle', 'lightning-toggle', 'hide-brushes-toggle', 'attractor-toggle', 'wind-toggle'];
                     const colorPickers = ['col-core', 'col-glow', 'col-line', 'col-fill', 'col-accessory'];
 
                     let settings = {
@@ -903,6 +904,7 @@
                         'confetti-size': 0.5,
                         trail: false,
                         metaball: false,
+                        hive: false,
                         fill: true,
                         color: true,
                         shockwave: false,
@@ -915,9 +917,11 @@
                         rain: false,
                         audio: false,
                         lightning: false,
-                        gameOfLife: false,
+
                         attractor: false,
                         wind: false,
+                        tails: false,
+                        'tail-length': 20,
                         brushType: 'off',
                         'hide-brushes': false,
                         'audio-sensitivity': 1.0,
@@ -1984,6 +1988,25 @@
                         }
                     });
 
+                    document.getElementById('share-preset-btn').addEventListener('click', () => {
+                        try {
+                            const configStr = JSON.stringify(settings);
+                            const encodedStr = btoa(configStr);
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('config', encodedStr);
+
+                            navigator.clipboard.writeText(url.toString()).then(() => {
+                                const btn = document.getElementById('share-preset-btn');
+                                const originalText = btn.innerHTML;
+                                btn.innerHTML = '✅ Copied!';
+                                setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+                            });
+                        } catch (e) {
+                            console.error("Sharing failed:", e);
+                            alert("Failed to generate share link.");
+                        }
+                    });
+
                     document.getElementById('preset-selector').addEventListener('change', (e) => {
                         const name = e.target.value;
                         if (!name) return;
@@ -2037,14 +2060,18 @@
                     function applyChaosPreset(preset) {
                         const config = preset.config || {};
 
+                        const performanceCritical = ['density', 'distance', 'max-neighbors', 'density-threshold', 'engineTimeScale'];
+
                         Object.keys(config).forEach(key => {
+                            if (performanceCritical.includes(key)) return; // Skip performance-heavy settings
+
                             const sliderEl = document.getElementById(key);
                             const toggleEl = document.getElementById(key + '-toggle');
 
                             if (sliderEl && sliderEl.type === 'range') {
                                 let value = jitterSliderValue(config[key], sliderEl);
 
-                                // Global safety caps for Chaos scenes
+                                // Global safety caps (redundant but good to keep)
                                 if (key === 'distance') value = Math.min(value, 170);
                                 if (key === 'max-neighbors') value = Math.min(value, 3);
                                 if (key === 'symmetry') value = Math.min(value, 2);
@@ -2115,12 +2142,7 @@
                         const el = document.getElementById(t);
                         el.addEventListener('change', e => {
                             const key = t.replace('-toggle', '');
-                            if (key === 'gol') {
-                                settings.gameOfLife = e.target.checked;
-                            } else {
-                                settings[key] = e.target.checked;
-                            }
-
+                            settings[key] = e.target.checked;
                             if (key === 'color') updatePickerState();
 
                             if (key === 'flock' && settings.flock) { settings.fluid = false; settings.fire = false; settings.rain = false; }
@@ -2193,20 +2215,25 @@
                         });
                     });
 
-                    document.getElementById('snap-btn').addEventListener('click', () => {
-                        const canvas = app.canvas;
-                        if (!canvas || !canvas.toBlob) return;
-
-                        canvas.toBlob(blob => {
-                            if (!blob) return;
-                            const a = document.createElement('a');
-                            document.body.append(a);
-                            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                            a.download = `freakin-fractals-screenshot-${timestamp}.png`;
-                            a.href = URL.createObjectURL(blob);
-                            a.click();
-                            a.remove();
-                        });
+                    document.getElementById('snap-btn').addEventListener('click', async () => {
+                        try {
+                            const canvas = await app.renderer.extract.canvas(app.stage);
+                            canvas.toBlob(blob => {
+                                if (!blob) return;
+                                const a = document.createElement('a');
+                                document.body.append(a);
+                                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                                a.download = `freakin-fractals-screenshot-${timestamp}.png`;
+                                a.href = URL.createObjectURL(blob);
+                                a.click();
+                                setTimeout(() => {
+                                    a.remove();
+                                    URL.revokeObjectURL(a.href);
+                                }, 100);
+                            }, 'image/png');
+                        } catch (e) {
+                            console.error("Wallpaper capture failed:", e);
+                        }
                     });
 
                     document.getElementById('reset-btn').addEventListener('click', () => {
@@ -2250,10 +2277,6 @@
                     });
 
                     let diamonds = [], shockwaves = [], paintedNodes = [], activeLightnings = [], mouse = { x: null, y: null };
-                    let golGrid = [];
-                    const GOL_CELL_SIZE = 20;
-                    let golCols = 0, golRows = 0;
-                    let golTimer = 0;
                     let audioCtx, animationTime = 0, frames = 0, lastFpsUpdate = performance.now();
                     let gyro = { x: 0, y: 0 };
                     let screenShake = 0;
@@ -2440,6 +2463,8 @@
 
                             const hue = Math.random() * 360;
                             this.colorHex = hslToHex(hue, 80, 60);
+
+                            this.history = []; // Track past positions for tails
 
                             this.sprites = [];
                             this.glowSprites = [];
@@ -2772,9 +2797,38 @@
                                     this.vx += Math.cos(this.y * 0.02 + animationTime * 1.5) * 0.02;
                                 }
 
-                                let friction = (settings.flock || settings.fluid || settings.fire) ? 0.98 : 0.94;
+                                let friction = (settings.flock || settings.fluid || settings.fire || settings.hive) ? 0.98 : 0.94;
                                 this.vx *= friction;
                                 this.vy *= friction;
+
+                                // --- HIVE MIND (Smooth Curl Flow Noise) ---
+                                if (settings.hive) {
+                                    // Multi-scale for smooth, organic flow
+                                    let nx = this.x * 0.003;
+                                    let ny = this.y * 0.003;
+                                    let t = animationTime * 0.8;
+
+                                    // Multi-octave potential function for more "thread-like" look
+                                    const potential = (px, py) => {
+                                        return (
+                                            Math.sin(px + t) * Math.cos(py - t) +
+                                            Math.sin(px * 2.2 + t * 0.4) * Math.cos(py * 1.8 + t * 0.6) * 0.5 +
+                                            Math.sin(px * 4.4 + t * 0.2) * Math.cos(py * 3.6 + t * 0.3) * 0.25
+                                        );
+                                    };
+
+                                    let eps = 0.2; // Larger epsilon for smoother gradients
+                                    let dpy = (potential(nx, ny + eps) - potential(nx, ny - eps)) / (2 * eps);
+                                    let dpx = (potential(nx + eps, ny) - potential(nx - eps, ny)) / (2 * eps);
+
+                                    // Curl = (dphi/dy, -dphi/dx)
+                                    this.vx += dpy * 2.2;
+                                    this.vy -= dpx * 2.2;
+
+                                    // Smoother friction for persistent streamlines
+                                    this.vx *= 0.97;
+                                    this.vy *= 0.97;
+                                }
 
                                 // --- HYPERSPACE HOLD PUMP ---
                                 if (typeof isSpaceDown !== 'undefined' && isSpaceDown) {
@@ -2798,6 +2852,16 @@
 
                                 this.x += this.vx * settings.engineTimeScale;
                                 this.y += this.vy * settings.engineTimeScale;
+
+                                // Update tail history
+                                if (settings.tails) {
+                                    this.history.push({ x: this.x, y: this.y });
+                                    if (this.history.length > settings['tail-length']) {
+                                        this.history.shift();
+                                    }
+                                } else if (this.history.length > 0) {
+                                    this.history = [];
+                                }
 
                                 if (settings.wrap) {
                                     if (this.x < -10) this.x = app.screen.width + 10;
@@ -3003,23 +3067,9 @@
                         }
                     }
 
-                    const golGraphics = new PIXI.Graphics();
-                    mainStage.addChildAt(golGraphics, 1); // Insert into mainStage above fadeLayer
 
-                    function initGOLGrid() {
-                        golCols = Math.ceil(app.screen.width / GOL_CELL_SIZE);
-                        golRows = Math.ceil(app.screen.height / GOL_CELL_SIZE);
-                        golGrid = new Array(golCols).fill(0).map(() => new Array(golRows).fill(0).map(() => Math.random() < 0.2 ? 1 : 0));
-                    }
 
-                    // Listen for GOL toggle to initialize
-                    document.getElementById('gol-toggle').addEventListener('change', (e) => {
-                        if (e.target.checked) {
-                            initGOLGrid();
-                        } else {
-                            golGraphics.clear();
-                        }
-                    });
+
 
                     let historyBuffer = [];
                     const MAX_HISTORY_FRAMES = 360; // About 6 seconds at 60fps
@@ -3113,69 +3163,7 @@
                                 }
                             }
 
-                            // --- Game of Life Logic ---
-                            if (settings.gameOfLife) {
-                                if (golGrid.length === 0 || golGrid[0].length === 0) {
-                                    initGOLGrid();
-                                }
 
-                                golTimer++;
-                                if (golTimer >= 10) { // Evaluate rules every 10 frames
-                                    golTimer = 0;
-                                    let nextGrid = new Array(golCols).fill(0).map(() => new Array(golRows).fill(0));
-
-                                    for (let col = 0; col < golCols; col++) {
-                                        for (let row = 0; row < golRows; row++) {
-                                            let state = golGrid[col][row];
-                                            let neighbors = 0;
-
-                                            // Count 8 neighbors
-                                            for (let i = -1; i <= 1; i++) {
-                                                for (let j = -1; j <= 1; j++) {
-                                                    if (i === 0 && j === 0) continue;
-                                                    // Wrap around edges
-                                                    let c = (col + i + golCols) % golCols;
-                                                    let r = (row + j + golRows) % golRows;
-                                                    neighbors += golGrid[c][r];
-                                                }
-                                            }
-
-                                            // Apply Rules
-                                            if (state === 0 && neighbors === 3) {
-                                                nextGrid[col][row] = 1; // Reproduction
-                                            } else if (state === 1 && (neighbors < 2 || neighbors > 3)) {
-                                                nextGrid[col][row] = 0; // Death
-                                            } else {
-                                                nextGrid[col][row] = state; // Survival
-                                            }
-
-                                            // Interactive Spark: Diamond particles near grid cells can spark life
-                                            if (nextGrid[col][row] === 0 && Math.random() < 0.05) {
-                                                // Check if any diamond is in this cell block
-                                                let cellX = col * GOL_CELL_SIZE;
-                                                let cellY = row * GOL_CELL_SIZE;
-                                                for (let d of diamonds) {
-                                                    if (d.x >= cellX && d.x < cellX + GOL_CELL_SIZE &&
-                                                        d.y >= cellY && d.y < cellY + GOL_CELL_SIZE) {
-                                                        if (Math.random() < 0.3) nextGrid[col][row] = 1; // 30% chance to spark
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    golGrid = nextGrid;
-                                }
-
-                                // Render GOL Overlay
-                                if (golGrid[col][row] === 1) {
-                                    golGraphics.rect(col * GOL_CELL_SIZE + 2, row * GOL_CELL_SIZE + 2, GOL_CELL_SIZE - 4, GOL_CELL_SIZE - 4)
-                                        .fill({ color: 0xbdffff, alpha: 0.4 })
-                                        .stroke({ width: 2, color: 0x88ffff, alpha: 0.9 });
-                                }
-                            } else {
-                                golGraphics.clear();
-                            }
 
                             glowContainer.blendMode = 'add';
                             particleContainer.blendMode = settings.additive ? 'add' : 'normal';
@@ -3375,6 +3363,40 @@
 
                             webGraphics.clear();
 
+                            // --- Particle Tails Rendering ---
+                            if (settings.tails) {
+                                const getWiggle = (p, idx, historyLen) => {
+                                    let t = animationTime * 3.0 - idx * 0.1;
+                                    let s = 0.005;
+                                    let wx = Math.sin(p.x * s + t) * Math.cos(p.y * s - t) * 15;
+                                    let wy = Math.cos(p.x * s - t * 0.8) * Math.sin(p.y * s + t * 1.2) * 15;
+                                    let intensity = (idx / historyLen);
+                                    return { x: wx * intensity, y: wy * intensity };
+                                };
+
+                                diamonds.forEach(d => {
+                                    if (d.history.length < 2) return;
+
+                                    let tailColor = settings.color ? d.colorHex : settings.colors.line;
+                                    let historyLen = d.history.length;
+
+                                    for (let i = 0; i < historyLen - 1; i++) {
+                                        let p1 = d.history[i];
+                                        let p2 = d.history[i + 1];
+
+                                        let w1 = getWiggle(p1, i, historyLen);
+                                        let w2 = getWiggle(p2, i + 1, historyLen);
+
+                                        let alpha = (i / historyLen) * 0.4;
+                                        let width = (i / historyLen) * 1.5;
+
+                                        webGraphics.lineStyle(width, tailColor, alpha);
+                                        webGraphics.moveTo(p1.x + w1.x, p1.y + w1.y);
+                                        webGraphics.lineTo(p2.x + w2.x, p2.y + w2.y);
+                                    }
+                                });
+                            }
+
                             let effectiveMaxNeighbors = settings.additive ? Math.min(settings['max-neighbors'], 3) : settings['max-neighbors'];
                             let effectiveDensityThresh = settings['density-threshold'];
 
@@ -3482,19 +3504,14 @@
                                                     let p2 = rot(d2);
                                                     let p3 = rot(d3);
 
+                                                    const points = [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y];
+                                                    const triangle = webGraphics.poly(points, true);
+
                                                     if (settings.fill) {
                                                         let fillColor = settings.color ? color : settings.colors.fill;
-                                                        webGraphics.beginFill(fillColor, fillAlpha);
-                                                        webGraphics.moveTo(p1.x, p1.y);
-                                                        webGraphics.lineTo(p2.x, p2.y);
-                                                        webGraphics.lineTo(p3.x, p3.y);
-                                                        webGraphics.endFill();
+                                                        triangle.fill({ color: fillColor, alpha: fillAlpha });
                                                     }
-                                                    webGraphics.lineStyle(0.5, color, lineAlpha);
-                                                    webGraphics.moveTo(p1.x, p1.y);
-                                                    webGraphics.lineTo(p2.x, p2.y);
-                                                    webGraphics.lineTo(p3.x, p3.y);
-                                                    webGraphics.lineTo(p1.x, p1.y);
+                                                    triangle.stroke({ width: 0.5, color: color, alpha: lineAlpha });
                                                 }
                                             }
                                         });
@@ -3584,6 +3601,20 @@
                         particleContainer.filterArea = app.screen;
                         glowContainer.visible = false;
                         webGraphics.visible = false;
+                    }
+                    // Check for shared configuration in URL
+                    const sharedConfig = _urlParams.get('config');
+                    if (sharedConfig) {
+                        try {
+                            const decodedConfig = JSON.parse(atob(sharedConfig));
+                            // Wait for elements to be ready then load
+                            setTimeout(() => {
+                                loadExactConfiguration(decodedConfig);
+                                console.log("Shared configuration loaded from URL successfully.");
+                            }, 100);
+                        } catch (e) {
+                            console.error("Failed to load shared configuration:", e);
+                        }
                     }
                 } catch (e) {
                     console.error("PixiJS Initialization Error:", e);
