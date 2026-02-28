@@ -551,6 +551,7 @@
                 <label for="tail-mode">Tail Mode:</label>
                 <select id="tail-mode">
                     <option value="smooth">Smooth (Geometric)</option>
+                    <option value="smooth-fast">Smooth Fast ⚡</option>
                     <option value="ribbon">Ribbon (Batched)</option>
                     <option value="persistence">Persistence (Blur)</option>
                 </select>
@@ -558,6 +559,10 @@
             <div class="control-group">
                 <label for="tail-length">Tail Length: <span id="tail-length-val">20</span></label>
                 <input type="range" id="tail-length" min="5" max="100" step="1" value="20">
+            </div>
+            <div class="control-group">
+                <label for="tail-glow-toggle" style="color:#a3dfff;">Tail Glow ✨: <input type="checkbox"
+                        id="tail-glow-toggle"></label>
             </div>
             <div class="control-group">
                 <label for="fill-toggle">Fill Triangles: <input type="checkbox" id="fill-toggle" checked></label>
@@ -695,6 +700,7 @@
 
                     const fadeLayer = new PIXI.Graphics();
                     const webGraphics = new PIXI.Graphics();
+                    const tailGlowGraphics = new PIXI.Graphics();
                     const shockwaveGraphics = new PIXI.Graphics();
 
                     const glowContainer = new PIXI.Container();
@@ -714,7 +720,16 @@
 
                     // Vector lines remain outside the main stage so they are never forced into
                     // a low-res 2D texture map when the Black Hole displacement filter is active.
+                    app.stage.addChild(tailGlowGraphics);
                     app.stage.addChild(webGraphics);
+
+                    // Tail glow blur filter
+                    const tailGlowBlur = new PIXI.BlurFilter();
+                    tailGlowBlur.blur = 8;
+                    tailGlowBlur.quality = 3;
+                    tailGlowGraphics.filters = [tailGlowBlur];
+                    tailGlowGraphics.blendMode = 'add';
+                    tailGlowGraphics.visible = false;
 
                     let metaballThreshold = null;
                     try {
@@ -793,6 +808,8 @@
                     const trailSprite = new PIXI.Sprite(trailRT1);
                     trailSprite.blendMode = 'additive';
                     app.stage.addChildAt(trailSprite, 0);
+
+                    const texGraphics = new PIXI.Graphics();
                     texGraphics.poly([-5, 0, 0, -8, 5, 0, 0, 8]).fill(0xFFFFFF);
                     const diamondTexture = app.renderer.generateTexture({ target: texGraphics });
 
@@ -936,6 +953,7 @@
                         tails: false,
                         'tail-mode': 'smooth',
                         'tail-length': 20,
+                        'tail-glow': false,
                         brushType: 'off',
                         'hide-brushes': false,
                         'audio-sensitivity': 1.0,
@@ -2348,6 +2366,11 @@
                         }
                     });
 
+                    document.getElementById('tail-glow-toggle').addEventListener('change', (e) => {
+                        settings['tail-glow'] = e.target.checked;
+                        tailGlowGraphics.visible = e.target.checked;
+                    });
+
                     document.getElementById('chaos-btn').addEventListener('click', () => {
                         randomizeChaosScene();
                     });
@@ -2665,6 +2688,18 @@
                         }
 
                         update(centerX, centerY, boidGrid, cellSize) {
+                            // --- COLOR LOGIC (Calculate early for history tracking) ---
+                            let color;
+                            if (settings.fire) {
+                                let fireHue = Math.random() * 45;
+                                color = hslToHex(fireHue, 100, 60);
+                            } else if (settings.color) {
+                                color = this.infected ? 0xff2233 : this.colorHex;
+                            } else {
+                                color = this.infected ? 0xff2233 : settings.colors.core;
+                            }
+                            this.currentColor = color;
+
                             if (!rewindActive) {
                                 // CHAOS ATTRACTOR PHYSICS (Clifford Attractor)
                                 if (settings.attractor) {
@@ -3015,7 +3050,7 @@
 
                                 // Update tail history
                                 if (settings.tails) {
-                                    this.history.push({ x: this.x, y: this.y });
+                                    this.history.push({ x: this.x, y: this.y, color: this.currentColor });
                                     if (this.history.length > settings['tail-length']) {
                                         this.history.shift();
                                     }
@@ -3069,16 +3104,7 @@
                             let coreSize = settings.size * pulseScale * projScale;
                             let glowBaseSize = (settings.size + settings['diamond-bloom'] * 4) * pulseScale * projScale;
 
-                            // --- COLOR LOGIC ---
-                            let color;
-                            if (settings.fire) {
-                                let fireHue = Math.random() * 45;
-                                color = hslToHex(fireHue, 100, 60);
-                            } else if (settings.color) {
-                                color = this.infected ? 0xff2233 : this.colorHex;
-                            } else {
-                                color = this.infected ? 0xff2233 : settings.colors.core;
-                            }
+                            color = this.currentColor;
 
                             let alpha = settings.kinetic ? 0.05 + 0.95 * this.glow : 1;
 
@@ -3538,46 +3564,115 @@
                         diamonds.forEach(d => d.update(centerX, centerY, boidGrid, boidCell));
 
                         webGraphics.clear();
+                        tailGlowGraphics.clear();
 
                         // --- Particle Tails Rendering ---
                         if (settings.tails && !persistenceActive) {
-                            let historyLen = Math.floor(settings['tail-length'] / 5) || 5;
                             let mode = settings['tail-mode'];
+                            // Max distance between two tail points before we consider it a screen-wrap jump
+                            const wrapThreshSq = 150 * 150;
 
                             const getWiggle = (p, idx, historyLen) => {
                                 let t = animationTime * 3.0 - idx * 0.1;
                                 let s = 0.005;
                                 let wx = Math.sin(p.x * s + t) * Math.cos(p.y * s - t) * 15;
                                 let wy = Math.cos(p.x * s - t * 0.8) * Math.sin(p.y * s + t * 1.2) * 15;
-                                let intensity = (idx / historyLen);
+                                let intensity = 1.0 - (idx / historyLen); // 0 at diamond, 1 at tail tip
                                 return { x: wx * intensity, y: wy * intensity };
                             };
 
                             diamonds.forEach(d => {
                                 if (d.history.length < 2) return;
-                                let tailColor = settings.color ? d.colorHex : settings.colors.line;
-                                let dHistoryLen = d.history.length;
+                                const tailColor = d.colorHex;
+                                const dHistoryLen = d.history.length;
 
                                 if (mode === 'smooth') {
-                                    // Optimized Geometric: skips segments, fewer lineStyle calls
                                     for (let i = 0; i < dHistoryLen - 1; i += 2) {
                                         let p1 = d.history[i];
-                                        let p2 = d.history[i + 1];
+                                        let p2 = d.history[i + 1] || p1;
+                                        // Skip if this segment crosses a wrap boundary
+                                        let dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                        if (dx * dx + dy * dy > wrapThreshSq) continue;
                                         let w1 = getWiggle(p1, i, dHistoryLen);
                                         let w2 = getWiggle(p2, i + 1, dHistoryLen);
-                                        let alpha = (i / dHistoryLen) * 0.3;
-                                        webGraphics.lineStyle((i / dHistoryLen) * 1.2, tailColor, alpha);
-                                        webGraphics.moveTo(p1.x + w1.x, p1.y + w1.y);
-                                        webGraphics.lineTo(p2.x + w2.x, p2.y + w2.y);
+                                        let ratio = (i + 1) / dHistoryLen;
+                                        let alpha = 0.1 + ratio * 0.5;
+                                        let width = ratio * 1.8;
+                                        let segColor = p1.color || tailColor;
+                                        webGraphics
+                                            .moveTo(p1.x + w1.x, p1.y + w1.y)
+                                            .lineTo(p2.x + w2.x, p2.y + w2.y)
+                                            .stroke({ width, color: segColor, alpha });
+                                    }
+                                } else if (mode === 'smooth-fast') {
+                                    // Alpha-bucket batching: group segments by alpha level.
+                                    // ~5 stroke() calls per particle vs 1 per segment in Smooth.
+                                    const BUCKETS = 5;
+                                    const buckets = Array.from({ length: BUCKETS }, () => []);
+                                    for (let i = 0; i < dHistoryLen - 1; i += 2) {
+                                        let p1 = d.history[i];
+                                        let p2 = d.history[Math.min(i + 2, dHistoryLen - 1)];
+                                        let dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                        if (dx * dx + dy * dy > wrapThreshSq) continue;
+                                        let ratio = (i + 1) / dHistoryLen;
+                                        let b = Math.min(BUCKETS - 1, Math.floor(ratio * BUCKETS));
+                                        let w1 = getWiggle(p1, i, dHistoryLen);
+                                        let w2 = getWiggle(p2, i + 2, dHistoryLen);
+                                        buckets[b].push(p1.x + w1.x, p1.y + w1.y, p2.x + w2.x, p2.y + w2.y);
+                                    }
+                                    for (let b = 0; b < BUCKETS; b++) {
+                                        if (buckets[b].length === 0) continue;
+                                        let ratio = (b + 0.5) / BUCKETS;
+                                        let alpha = 0.08 + ratio * 0.52;
+                                        let width = 0.3 + ratio * 1.5;
+                                        for (let k = 0; k < buckets[b].length; k += 4) {
+                                            webGraphics.moveTo(buckets[b][k], buckets[b][k + 1]);
+                                            webGraphics.lineTo(buckets[b][k + 2], buckets[b][k + 3]);
+                                        }
+                                        webGraphics.stroke({ width, color: tailColor, alpha });
                                     }
                                 } else if (mode === 'ribbon') {
-                                    // Ribbon: continuous path, single draw call per particle
-                                    webGraphics.lineStyle(1.0, tailColor, 0.2);
-                                    let start = d.history[0];
-                                    webGraphics.moveTo(start.x, start.y);
-                                    for (let i = 1; i < dHistoryLen; i += 3) {
-                                        webGraphics.lineTo(d.history[i].x, d.history[i].y);
+                                    // Ribbon: break path on any wrap jump
+                                    let started = false;
+                                    for (let i = 0; i < dHistoryLen - 1; i += 3) {
+                                        let p1 = d.history[i];
+                                        let p2 = d.history[Math.min(i + 3, dHistoryLen - 1)];
+                                        let dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                        if (dx * dx + dy * dy > wrapThreshSq) {
+                                            // Break — flush what we have and start new sub-path
+                                            if (started) webGraphics.stroke({ width: 1.5, color: tailColor, alpha: 0.5 });
+                                            started = false;
+                                            continue;
+                                        }
+                                        if (!started) {
+                                            webGraphics.moveTo(p1.x, p1.y);
+                                            started = true;
+                                        }
+                                        webGraphics.lineTo(p2.x, p2.y);
                                     }
+                                    if (started) webGraphics.stroke({ width: 1.5, color: tailColor, alpha: 0.5 });
+                                }
+
+                                // --- Tail Glow Pass (blurred additive overlay) ---
+                                if (settings['tail-glow']) {
+                                    // Draw a single wide ribbon on the blur layer for halo effect
+                                    let glowStarted = false;
+                                    for (let i = 0; i < dHistoryLen - 1; i += 4) {
+                                        let p1 = d.history[i];
+                                        let p2 = d.history[Math.min(i + 4, dHistoryLen - 1)];
+                                        let dx = p2.x - p1.x, dy = p2.y - p1.y;
+                                        if (dx * dx + dy * dy > wrapThreshSq) {
+                                            if (glowStarted) tailGlowGraphics.stroke({ width: 6, color: tailColor, alpha: 0.3 });
+                                            glowStarted = false;
+                                            continue;
+                                        }
+                                        if (!glowStarted) {
+                                            tailGlowGraphics.moveTo(p1.x, p1.y);
+                                            glowStarted = true;
+                                        }
+                                        tailGlowGraphics.lineTo(p2.x, p2.y);
+                                    }
+                                    if (glowStarted) tailGlowGraphics.stroke({ width: 6, color: tailColor, alpha: 0.3 });
                                 }
                             });
                         }
