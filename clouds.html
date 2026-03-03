@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Surfer Experience</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            cursor: none;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        #c2d {
+            z-index: 1;
+        }
+
+        #cgl {
+            z-index: 1;
+        }
+
+        #ao {
+            z-index: 2;
+            display: block;
+            pointer-events: none;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.93);
+            border-radius: 14px;
+            padding: 20px 22px;
+            box-shadow: 0 8px 32px rgba(0, 90, 180, 0.18);
+            width: 280px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            color: #0062cc;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .grp {
+            margin-bottom: 14px;
+        }
+
+        .grp>label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .grp>label span {
+            color: #0062cc;
+            font-weight: 700;
+        }
+
+        select,
+        input[type=range] {
+            width: 100%;
+        }
+
+        select {
+            padding: 6px 10px;
+            border-radius: 7px;
+            border: 1.5px solid #aac8ef;
+            font-size: 0.85rem;
+            color: #222;
+            background: #f0f7ff;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .desc {
+            font-size: 0.73rem;
+            color: #667;
+            margin-top: 5px;
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        .hint {
+            font-size: 0.75rem;
+            color: #0078d4;
+            margin-top: 10px;
+            background: #e8f4ff;
+            border-radius: 6px;
+            padding: 6px 8px;
+        }
+
+        /* ── GOO layer for Stylized mode ── */
+        #goo-wrap {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: none;
+            filter: blur(22px) contrast(35);
+            pointer-events: none;
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            background: white;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- SEPARATE canvases for each context type — never mixed -->
+    <canvas id="c2d"></canvas> <!-- Canvas2D: Billboard + Stylized sky -->
+    <canvas id="cgl"></canvas> <!-- WebGL2:   Volumetric               -->
+    <div id="goo-wrap"></div> <!-- CSS goo:  Stylized metaballs       -->
+    <canvas id="ao"></canvas> <!-- Airplane overlay (always Canvas2D)  -->
+
+    <div id="ui">
+        <h2>☁ Cloud Surfer</h2>
+        <div class="grp">
+            <label>Style</label>
+            <select id="modeSelect">
+                <option value="billboard" selected>Style 1 — Billboard Puffs</option>
+                <option value="volumetric">Style 2 — Volumetric (GPU)</option>
+                <option value="stylized">Style 3 — Stylized Metaballs</option>
+            </select>
+            <div class="desc" id="modeDesc">Layered soft-edged sprites. Classic summer cumulus look.</div>
+        </div>
+        <div class="grp">
+            <label>Wind Speed <span id="speedLbl">1.0</span></label>
+            <input type="range" id="speedSlider" min="0" max="5" step="0.05" value="1.0">
+        </div>
+        <div class="grp">
+            <label>Cloud Density <span id="densityLbl">0.65</span></label>
+            <input type="range" id="densitySlider" min="0.1" max="1.5" step="0.01" value="0.65">
+        </div>
+        <div class="hint">✈ Move your mouse to fly — dive through the clouds!</div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════
+        //  CANVAS SETUP — dedicated canvas per context type
+        // ═══════════════════════════════════════════════════
+        const c2d = document.getElementById('c2d');   // 2D context (billboard + stylized)
+        const cgl = document.getElementById('cgl');   // WebGL2 (volumetric)
+        const ao = document.getElementById('ao');    // airplane overlay
+
+        let W, H;
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            c2d.width = cgl.width = ao.width = W;
+            c2d.height = cgl.height = ao.height = H;
+        }
+        resize();
+        window.addEventListener('resize', () => { resize(); switchMode(); });
+
+        // Create 2D contexts once — no re-creation across modes
+        const ctx2d = c2d.getContext('2d');
+        const ctxAo = ao.getContext('2d');
+
+        // WebGL2 context — created once, kept alive
+        const gl = cgl.getContext('webgl2');
+        if (!gl) console.warn('WebGL2 not supported — Volumetric mode unavailable');
+
+        // ── helper: show the right canvas ──
+        function showCanvas(mode) {
+            c2d.style.display = (mode === 'billboard' || mode === 'stylized') ? 'block' : 'none';
+            cgl.style.display = (mode === 'volumetric') ? 'block' : 'none';
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  STATE
+        // ═══════════════════════════════════════════════════
+        const state = {
+            mode: 'billboard', speed: 1.0, density: 0.65,
+            time: 0, offsetX: 0, inCloud: false
+        };
+        const DESCS = {
+            billboard: 'Layered soft-edged sprites on the horizon. Classic summer cumulus look.',
+            volumetric: 'GPU fragment shader FBM noise. Organic, realistic cloud volume.',
+            stylized: 'Gooey metaballs via blur + threshold. Clean illustrative style.'
+        };
+
+        // ═══════════════════════════════════════════════════
+        //  AIRPLANE
+        // ═══════════════════════════════════════════════════
+        const plane = { x: null, y: null, vx: 0, vy: 0, angle: 0, trail: [] };
+        let mouseX = null, mouseY = null;
+        document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+
+        function updateAirplane() {
+            if (mouseX === null) mouseX = W / 2;
+            if (mouseY === null) mouseY = H * 0.45;
+            if (plane.x === null) { plane.x = mouseX; plane.y = mouseY; }
+            const lag = 0.07;
+            const px = plane.x, py = plane.y;
+            plane.x += (mouseX - plane.x) * lag;
+            plane.y += (mouseY - plane.y) * lag;
+            plane.vx = plane.x - px;
+            plane.vy = plane.y - py;
+            const spd = Math.hypot(plane.vx, plane.vy);
+            if (spd > 0.3) plane.angle = Math.atan2(plane.vy, plane.vx);
+            plane.trail.push({ x: plane.x, y: plane.y, life: 1.0 });
+            if (plane.trail.length > 28) plane.trail.shift();
+            for (const t of plane.trail) t.life -= 0.04;
+            plane.trail = plane.trail.filter(t => t.life > 0);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  POOF PARTICLES
+        // ═══════════════════════════════════════════════════
+        let poofs = [];
+        class Poof {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 9; this.vy = (Math.random() - 0.5) * 9 - 1.5;
+                this.r = 7 + Math.random() * 18;
+                this.life = 1.0; this.decay = 0.018 + Math.random() * 0.025;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.vy += 0.06; this.vx *= 0.96; this.vy *= 0.96; this.r *= 1.06; this.life -= this.decay; }
+            draw(ctx) {
+                const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
+                g.addColorStop(0, `rgba(255,255,255,${this.life * 0.8})`);
+                g.addColorStop(0.5, `rgba(220,240,255,${this.life * 0.35})`);
+                g.addColorStop(1, `rgba(200,225,255,0)`);
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+                ctx.fillStyle = g; ctx.fill();
+            }
+        }
+        function spawnPoof(x, y) {
+            for (let i = 0; i < 16 + Math.random() * 10; i++) poofs.push(new Poof(x, y));
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  SHARED HELPERS
+        // ═══════════════════════════════════════════════════
+        function drawSky(ctx) {
+            const g = ctx.createLinearGradient(0, 0, 0, H);
+            g.addColorStop(0, '#1e90ff'); g.addColorStop(0.5, '#87ceeb'); g.addColorStop(1, '#c8eafb');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  DRAW AIRPLANE (shaded 3D paper fold)
+        // ═══════════════════════════════════════════════════
+        function drawAirplane(ctx) {
+            if (plane.x === null) return;
+            const L = 56, bank = Math.max(-0.45, Math.min(0.45, plane.vx * 0.09));
+            ctx.save();
+            ctx.translate(plane.x, plane.y);
+            ctx.rotate(plane.angle);
+
+            // Drop shadow
+            ctx.save();
+            ctx.translate(7, 10); ctx.scale(1, 0.5); ctx.globalAlpha = 0.14;
+            ctx.beginPath(); ctx.moveTo(L * .68, 0); ctx.lineTo(-L * .32, -30); ctx.lineTo(-L * .32, 30); ctx.closePath();
+            ctx.fillStyle = '#003366'; ctx.filter = 'blur(5px)'; ctx.fill();
+            ctx.restore();
+
+            // Fuselage
+            ctx.beginPath(); ctx.moveTo(L * .68, 0); ctx.lineTo(-L * .32, -7); ctx.lineTo(-L * .32, 7); ctx.closePath();
+            const bg = ctx.createLinearGradient(0, -7, 0, 7);
+            bg.addColorStop(0, '#f2f6ff'); bg.addColorStop(1, '#dde8fb');
+            ctx.fillStyle = bg; ctx.fill();
+            ctx.strokeStyle = 'rgba(100,140,210,0.2)'; ctx.lineWidth = 0.5; ctx.stroke();
+
+            // Top wing (brighter)
+            const ty = -32 - bank * 18;
+            ctx.beginPath(); ctx.moveTo(L * .12, -2); ctx.lineTo(-L * .22, ty); ctx.lineTo(-L * .32, -7); ctx.closePath();
+            const tg = ctx.createLinearGradient(0, 0, 0, ty);
+            tg.addColorStop(0, '#ffffff'); tg.addColorStop(0.6, '#daeeff'); tg.addColorStop(1, '#b8d4f0');
+            ctx.fillStyle = tg; ctx.fill(); ctx.strokeStyle = 'rgba(80,120,200,0.18)'; ctx.stroke();
+
+            // Bottom wing (darker)
+            const by2 = 32 + bank * 18;
+            ctx.beginPath(); ctx.moveTo(L * .12, 2); ctx.lineTo(-L * .22, by2); ctx.lineTo(-L * .32, 7); ctx.closePath();
+            const bg2 = ctx.createLinearGradient(0, 0, 0, by2);
+            bg2.addColorStop(0, '#daeeff'); bg2.addColorStop(1, '#9ab8e0');
+            ctx.fillStyle = bg2; ctx.fill(); ctx.strokeStyle = 'rgba(60,100,180,0.18)'; ctx.stroke();
+
+            // Fold crease
+            ctx.beginPath(); ctx.moveTo(L * .68, 0); ctx.lineTo(-L * .32, 0);
+            ctx.strokeStyle = 'rgba(80,110,190,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+
+            // Nose glint
+            ctx.beginPath(); ctx.arc(L * .58, -1, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawTrail(ctx) {
+            for (let i = 1; i < plane.trail.length; i++) {
+                const a = plane.trail[i - 1], b = plane.trail[i];
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = `rgba(200,225,255,${b.life * 0.3})`; ctx.lineWidth = b.life * 2.5; ctx.stroke();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  MODE 1 — BILLBOARD PUFFS
+        // ═══════════════════════════════════════════════════
+        let clouds = [], billStop = false;
+
+        function initBillboards() {
+            billStop = false; clouds = [];
+            const n = Math.round(10 + state.density * 15);
+            for (let i = 0; i < n; i++) {
+                const depth = 0.2 + Math.random() * 0.6;
+                const base = 55 + depth * 130;
+                const puffs = [];
+                for (let p = 0; p < 3 + Math.floor(Math.random() * 5); p++)
+                    puffs.push({ dx: (Math.random() - 0.5) * base * 1.3, dy: (Math.random() - 0.5) * base * 0.45, r: base * (0.5 + Math.random() * 0.75) });
+                clouds.push({ cx: Math.random() * W * 1.5 - W * .25, baseY: H * (0.25 + depth * 0.3), depth, puffs, speed: 0.3 + depth * 1.2 });
+            }
+        }
+
+        function renderBillboards() {
+            if (billStop) return;
+            const ctx = ctx2d;
+            ctx.clearRect(0, 0, W, H); drawSky(ctx);
+            const px = plane.x ?? W / 2, py = plane.y ?? H / 2;
+            let nowIn = false;
+
+            for (const c of clouds) {
+                c.cx += c.speed * state.speed * 0.55;
+                if (c.cx > W + 700) c.cx = -700;
+                for (const p of c.puffs) {
+                    const bx = c.cx + p.dx, by = c.baseY + p.dy;
+                    const r = p.r * (0.4 + state.density * 0.8);
+                    const dx = bx - px, dy = by - py, dist = Math.hypot(dx, dy);
+                    const zone = r * 1.1 + 55;
+                    let drawX = bx, drawY = by;
+                    if (dist < zone && dist > 0.1) { const s = Math.pow(1 - dist / zone, 1.8) * 75; drawX += (dx / dist) * s; drawY += (dy / dist) * s; }
+                    if (Math.hypot(px - bx, py - by) < r * 0.6) nowIn = true;
+
+                    const g = ctx.createRadialGradient(drawX, drawY - r * .12, r * .1, drawX, drawY, r);
+                    g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.35, 'rgba(245,250,255,0.8)');
+                    g.addColorStop(0.7, 'rgba(220,238,255,0.45)'); g.addColorStop(1, 'rgba(200,225,255,0)');
+                    ctx.beginPath(); ctx.arc(drawX, drawY, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+
+                    // Bottom shadow shading for dimension
+                    const sg = ctx.createRadialGradient(drawX, drawY + r * .4, 0, drawX, drawY, r);
+                    sg.addColorStop(0.5, 'rgba(140,175,215,0.13)'); sg.addColorStop(1, 'rgba(140,175,215,0)');
+                    ctx.beginPath(); ctx.arc(drawX, drawY, r, 0, Math.PI * 2); ctx.fillStyle = sg; ctx.fill();
+                }
+            }
+            if (nowIn) {
+                const h = ctx.createRadialGradient(px, py, 0, px, py, 110);
+                h.addColorStop(0, 'rgba(255,255,255,0.42)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.beginPath(); ctx.arc(px, py, 110, 0, Math.PI * 2); ctx.fillStyle = h; ctx.fill();
+            }
+            if (state.inCloud && !nowIn) spawnPoof(px, py);
+            state.inCloud = nowIn;
+            requestAnimationFrame(renderBillboards);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  MODE 2 — VOLUMETRIC (dedicated WebGL2 canvas)
+        // ═══════════════════════════════════════════════════
+        let glProg = null, glLoc = {}, volStop = false;
+
+        const VERT = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv=aPos*.5+.5; gl_Position=vec4(aPos,0,1); }`;
+
+        const FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform float uTime,uOffX,uDensity;
+uniform vec2 uPUV; uniform float uAspect;
+
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<6;i++){v+=a*n(p);p*=2.1;a*=.5;}return v;}
+
+void main(){
+    vec2 uv=vUv;
+    vec3 skyT=vec3(.06,.42,.90), skyB=vec3(.55,.82,.98);
+    vec3 sky=mix(skyB,skyT,pow(uv.y,.7));
+    float band=smoothstep(.05,.28,uv.y)*smoothstep(.90,.42,uv.y);
+    float sc=uOffX*.18;
+    float nv=fbm(uv*2.5+vec2(sc,0.))+fbm(uv*5.5+vec2(sc*1.7,0.))*.5;
+    float lit=smoothstep(.4,1.,fbm(uv*2.5+vec2(sc,0.)));
+    float mask=smoothstep(0.,.15,nv*band*uDensity*1.6-.3);
+    vec2 pd=uv-uPUV; pd.x*=uAspect;
+    float pDist=length(pd);
+    float hole=smoothstep(.048,.014,pDist);
+    float glow=smoothstep(.09,.04,pDist)*mask*.6;
+    mask*=(1.-hole);
+    vec3 cCol=mix(vec3(.82,.88,.96),vec3(1.),lit);
+    float haze=smoothstep(.35,.08,uv.y)*.5;
+    sky=mix(sky,vec3(.85,.92,1.),haze);
+    vec3 col=mix(sky,cCol,mask)+vec3(glow);
+    o=vec4(col,1.);
+}`;
+
+        function compSh(type, src) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src); gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error('Shader:', gl.getShaderInfoLog(s)); return null; }
+            return s;
+        }
+
+        function initVolumetric() {
+            volStop = false;
+            if (!gl) { console.error('WebGL2 not available'); return; }
+            if (!glProg) {
+                // Build program only once
+                const vs = compSh(gl.VERTEX_SHADER, VERT), fs = compSh(gl.FRAGMENT_SHADER, FRAG);
+                glProg = gl.createProgram();
+                gl.attachShader(glProg, vs); gl.attachShader(glProg, fs); gl.linkProgram(glProg);
+                if (!gl.getProgramParameter(glProg, gl.LINK_STATUS)) { console.error('Link:', gl.getProgramInfoLog(glProg)); glProg = null; return; }
+                const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+                const loc = gl.getAttribLocation(glProg, 'aPos');
+                gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+                glLoc = {
+                    uTime: gl.getUniformLocation(glProg, 'uTime'), uOffX: gl.getUniformLocation(glProg, 'uOffX'),
+                    uDensity: gl.getUniformLocation(glProg, 'uDensity'), uPUV: gl.getUniformLocation(glProg, 'uPUV'),
+                    uAspect: gl.getUniformLocation(glProg, 'uAspect')
+                };
+            }
+        }
+
+        function renderVolumetric() {
+            if (volStop || !gl || !glProg) return;
+            gl.viewport(0, 0, W, H);
+            gl.useProgram(glProg);
+            gl.uniform1f(glLoc.uTime, state.time);
+            gl.uniform1f(glLoc.uOffX, state.offsetX);
+            gl.uniform1f(glLoc.uDensity, state.density);
+            const px = plane.x ?? W / 2, py = plane.y ?? H / 2;
+            gl.uniform2f(glLoc.uPUV, px / W, py / H);
+            gl.uniform1f(glLoc.uAspect, W / H);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            // Approximate "in band" — use Y position heuristic
+            const uvY = py / H;
+            const t = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a))); const sm = (a, b, x) => { const tt = t(x, a, b); return tt * tt * (3 - 2 * tt); };
+            const band = sm(0.05, 0.28, uvY) * sm(0.90, 0.42, uvY);
+            const wasIn = state.inCloud, nowIn = band > 0.25;
+            if (wasIn && !nowIn) spawnPoof(px, py);
+            state.inCloud = nowIn;
+            requestAnimationFrame(renderVolumetric);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  MODE 3 — STYLIZED METABALLS (CSS goo filter)
+        //  Uses GPU-accelerated CSS blur+contrast on a div layer
+        //  — no per-pixel getImageData loops.
+        // ═══════════════════════════════════════════════════
+        let blobs = [], stylStop = false;
+        const gooWrap = document.getElementById('goo-wrap');
+
+        function initStylized() {
+            stylStop = false; blobs = [];
+            gooWrap.innerHTML = '';
+            // Draw sky on c2d once; sky is static background
+            ctx2d.clearRect(0, 0, W, H); drawSky(ctx2d);
+            const n = Math.round(18 + state.density * 22);
+            for (let i = 0; i < n; i++) {
+                const d = 0.2 + Math.random() * 0.6;
+                const bx = Math.random() * W, by = H * (0.38 + d * 0.24);
+                const r = 40 + d * 90;
+                const el = document.createElement('div');
+                el.className = 'blob';
+                el.style.width = (r * 2) + 'px';
+                el.style.height = (r * 2) + 'px';
+                gooWrap.appendChild(el);
+                blobs.push({ bx, by, x: bx, y: by, r, speed: 0.4 + d * 0.9, el });
+            }
+        }
+
+        function renderStylized() {
+            if (stylStop) return;
+            const px = plane.x ?? W / 2, py = plane.y ?? H / 2;
+            let nowIn = false;
+
+            for (const b of blobs) {
+                // Advance base position
+                b.bx += b.speed * state.speed * 0.55;
+                if (b.bx > W + 300) b.bx = -300;
+                // Spring toward base
+                b.x += (b.bx - b.x) * 0.12;
+                b.y += (b.by - b.y) * 0.12;
+                // Push away from plane
+                const dx = b.x - px, dy = b.y - py, dist = Math.hypot(dx, dy);
+                const r = b.r * (0.3 + state.density * 0.9);
+                const zone = r * 1.2 + 55;
+                let dispX = b.x, dispY = b.y;
+                if (dist < zone && dist > 0.1) {
+                    const push = Math.pow(1 - dist / zone, 2) * 55;
+                    dispX += (dx / dist) * push; dispY += (dy / dist) * push;
+                }
+                if (dist < r * 0.7) nowIn = true;
+                // Position blob div (top-left corner offset by radius)
+                b.el.style.transform = `translate(${dispX - b.r}px, ${dispY - b.r}px)`;
+                // Scale by density
+                const scl = 0.35 + state.density * 0.85;
+                b.el.style.width = (b.r * 2 * scl) + 'px';
+                b.el.style.height = (b.r * 2 * scl) + 'px';
+            }
+
+            if (state.inCloud && !nowIn) spawnPoof(px, py);
+            state.inCloud = nowIn;
+
+            // Redraw sky each frame so airplane overlay sits correctly
+            ctx2d.clearRect(0, 0, W, H); drawSky(ctx2d);
+            // Interior cloud ambient haze
+            if (nowIn) {
+                const h = ctx2d.createRadialGradient(px, py, 0, px, py, 100);
+                h.addColorStop(0, 'rgba(255,255,255,0.40)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx2d.beginPath(); ctx2d.arc(px, py, 100, 0, Math.PI * 2); ctx2d.fillStyle = h; ctx2d.fill();
+            }
+            requestAnimationFrame(renderStylized);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  OVERLAY — airplane + particles
+        // ═══════════════════════════════════════════════════
+        function renderOverlay() {
+            updateAirplane();
+            const ctx = ctxAo;
+            ctx.clearRect(0, 0, W, H);
+            for (const p of poofs) { p.update(); p.draw(ctx); }
+            poofs = poofs.filter(p => p.life > 0);
+            drawTrail(ctx);
+            drawAirplane(ctx);
+            requestAnimationFrame(renderOverlay);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  MODE SWITCHER
+        // ═══════════════════════════════════════════════════
+        function switchMode() {
+            billStop = true; volStop = true; stylStop = true;
+            state.inCloud = false; poofs = [];
+            // Hide goo layer + clear blobs when leaving stylized
+            gooWrap.style.display = 'none';
+            gooWrap.innerHTML = '';
+            blobs = [];
+            showCanvas(state.mode);
+            setTimeout(() => {
+                state.time = 0; state.offsetX = 0; billStop = false; volStop = false; stylStop = false;
+                if (state.mode === 'billboard') {
+                    initBillboards(); requestAnimationFrame(renderBillboards);
+                } else if (state.mode === 'volumetric') {
+                    initVolumetric(); requestAnimationFrame(renderVolumetric);
+                } else if (state.mode === 'stylized') {
+                    gooWrap.style.display = 'block';
+                    initStylized(); requestAnimationFrame(renderStylized);
+                }
+            }, 80);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  GLOBAL TIME TICK
+        // ═══════════════════════════════════════════════════
+        let lastTs = 0;
+        function tick(ts) {
+            const dt = Math.min((ts - lastTs) / 16.67, 3); lastTs = ts;
+            state.time += 0.01 * dt; state.offsetX += 0.25 * state.speed * dt;
+            requestAnimationFrame(tick);
+        }
+
+        // ═══════════════════════════════════════════════════
+        //  UI
+        // ═══════════════════════════════════════════════════
+        document.getElementById('modeSelect').addEventListener('change', e => {
+            state.mode = e.target.value;
+            document.getElementById('modeDesc').innerText = DESCS[state.mode];
+            switchMode();
+        });
+        document.getElementById('speedSlider').addEventListener('input', e => {
+            state.speed = parseFloat(e.target.value); document.getElementById('speedLbl').innerText = state.speed.toFixed(1);
+        });
+        document.getElementById('densitySlider').addEventListener('input', e => {
+            state.density = parseFloat(e.target.value); document.getElementById('densityLbl').innerText = state.density.toFixed(2);
+        });
+
+        // ═══════════════════════════════════════════════════
+        //  START
+        // ═══════════════════════════════════════════════════
+        requestAnimationFrame(tick);
+        requestAnimationFrame(renderOverlay);
+        switchMode();
+    </script>
+</body>
+
+</html>

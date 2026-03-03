@@ -130,12 +130,12 @@
             </div>
             <div class="param">
                 <label>Opacity (Alpha)</label>
-                <input type="range" id="uOpacity" min="0.1" max="1.0" step="0.05" value="0.1">
+                <input type="range" id="uOpacity" min="0.1" max="1.0" step="0.05" value="0.55">
                 <span id="uOpacity-val">0.1</span>
             </div>
             <div class="param">
                 <label>Sky Void Height</label>
-                <input type="range" id="uSkyVoidY" min="-1000" max="1200" step="10" value="400">
+                <input type="range" id="uSkyVoidY" min="-1000" max="1200" step="10" value="800">
                 <span id="uSkyVoidY-val">400</span>
             </div>
         </div>
@@ -199,7 +199,7 @@
             </div>
             <div class="param">
                 <label>Voxel Glow (Bloom Feed)</label>
-                <input type="range" id="uGlow" min="0.0" max="1.0" step="0.05" value="1.0">
+                <input type="range" id="uGlow" min="0.0" max="1.0" step="0.05" value="0.15">
                 <span id="uGlow-val">1.0</span>
             </div>
         </div>
@@ -208,11 +208,11 @@
             <h3>Cinematic Bloom & Supernova</h3>
             <div class="param" style="flex-direction: row; align-items: center; justify-content: space-between;">
                 <label>Additive Supernova Mode</label>
-                <input type="checkbox" id="uAdditive" checked>
+                <input type="checkbox" id="uAdditive">
             </div>
             <div class="param">
                 <label>Supernova Intensity</label>
-                <input type="range" id="uSupernova" min="0.0" max="2.0" step="0.1" value="0.2">
+                <input type="range" id="uSupernova" min="0.0" max="2.0" step="0.1" value="0.8">
                 <span id="uSupernova-val">0.2</span>
             </div>
             <div class="param">
@@ -511,46 +511,6 @@
             gl_FragColor = vec4(vel, 1.0);
         }
     </script>
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
-    Riverside:
 
     <script id="simulation-position" type="x-shader/x-fragment">
         varying vec2 vUv;
@@ -707,6 +667,7 @@
         uniform float uOpacity;
         uniform float uGlow;
         uniform float uSupernova;
+        uniform float uBloomStrength;
         uniform vec3 uSkyColor;
         uniform vec3 uHorizonColor;
         uniform vec3 uSunColor;
@@ -770,8 +731,9 @@
             // We also maintain high alpha where the bloom is strongest to ensure it blows out nicely
             alpha = clamp(alpha * softEdge * 1.5 + (bloomEdge * uBloomStrength), 0.0, 1.0);
 
-            // Scale alpha by supernova for additive softness
-            alpha *= (uSupernova > 0.0 ? uSupernova : 1.0);
+            // Scale alpha by supernova intensity ONLY for additive/supernova color boost
+            // Do NOT multiply alpha — that made clouds invisible at low supernova values
+            // alpha *= (uSupernova > 0.0 ? uSupernova : 1.0);
             
             // Prevent completely invisible particles from rendering to save overdraw
             if (alpha < 0.01) discard;
@@ -816,15 +778,15 @@
 
         const params = {
             uVoxelCount: 500000,
-            uVoxelWidth: 7.8, uVoxelLength: 5.5, uOpacity: 0.1,
-            uSkyVoidY: 400,
+            uVoxelWidth: 7.8, uVoxelLength: 5.5, uOpacity: 0.55,
+            uSkyVoidY: 800,
             uSimSpeed: 1.0, uNoiseFreq: 0.3, uNoisePower: 1.0, uWind: 0.3,
             uMorphFreq: 0.029, uMorphPower: 0, uSunContrast: 0.5, uAO: 0.1,
-            uGlow: 1.0,
-            uSupernova: 0.2,
+            uGlow: 0.15,
+            uSupernova: 0.8,
             uBloomStrength: 0.0, uBloomRadius: 0.0, uBloomThreshold: 0.0,
             uBgColor: '#103060', uHorizonColor: '#e0f0ff', uSunColor: '#ffddaa',
-            uAdditive: true
+            uAdditive: false  // NormalBlending default — clouds are solid and visible
         };
 
         // --- GPGPU Setup ---
@@ -977,27 +939,27 @@
                 textureVelocity: { value: null },
                 gpuResolution: { value: new THREE.Vector2(TEXTURE_WIDTH, TEXTURE_HEIGHT) },
                 lightDir: { value: new THREE.Vector3(1, 1, 0.5).normalize() },
-                cloudColor: { value: new THREE.Color(0xd0d5da) },
+                cloudColor: { value: new THREE.Color(0xdde8f0) },
                 highlightColor: { value: new THREE.Color(0xffffff) },
-                // Debug Uniforms
-                uVoxelWidth: { value: 1.5 },
-                uVoxelLength: { value: 8.0 },
+                // Tuned for merged cumulus metaball look
+                uVoxelWidth: { value: 9.0 },
+                uVoxelLength: { value: 9.0 },
                 uSunContrast: { value: 1.5 },
-                uAO: { value: 0.7 },
-                uOpacity: { value: 0.7 },
+                uAO: { value: 0.55 },
+                uOpacity: { value: 0.55 },
                 uGlow: { value: 0.15 },
                 uSupernova: { value: 0.8 },
-                uBloomStrength: { value: 0.0 }, // Injected internal bloom
+                uBloomStrength: { value: 0.0 },
                 uSkyColor: { value: new THREE.Color(0x103060) },
                 uHorizonColor: { value: new THREE.Color(0xe0f0ff) },
                 uSunColor: { value: new THREE.Color(0xffddaa) },
-                uSkyVoidY: { value: 400 }
+                uSkyVoidY: { value: 800 }
             },
             vertexShader: document.getElementById('render-vertex').textContent,
             fragmentShader: document.getElementById('render-fragment').textContent,
             transparent: true,
-            depthWrite: false, // Prevents voxels from awkwardly Z-fighting and hard-clipping
-            blending: THREE.NormalBlending // Normal blending gives solid mass and definition (blocks out light)
+            depthWrite: false,
+            blending: THREE.NormalBlending  // Solid cloud mass by default
         });
 
         const instancedMesh = new THREE.InstancedMesh(voxelGeo, voxelMat, PARTICLES);
