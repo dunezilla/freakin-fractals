@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Simple Particle System</title>
+<style>body { margin:0; background:#000 }</style>
+</head>
+<body>
+
+<script>
+// Create canvas that fills the window
+const canvas = document.createElement('canvas');
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
+
+let width, height;
+const particles = [];
+const particleCount = 500;
+const mouseRadius = 150;
+let mouse = { x: -1000, y: -1000, active: false };
+
+// Set canvas size
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Mouse tracking
+document.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    mouse.active = true;
+});
+
+// Particle class
+class Particle {
+    constructor() {
+        this.reset(true);
+    }
+    reset(randomX = false) {
+        this.x = randomX ? Math.random() * width : width / 2 + (Math.random() - 0.5) * 200;
+        this.y = height / 2 + (Math.random() - 0.5) * 200;
+        this.vx = (Math.random() - 0.5) * 1.5;
+        this.vy = (Math.random() - 0.5) * 1.5;
+        this.size = Math.random() * 2 + 1;
+        this.hue = Math.random() * 360;
+        this.life = 1;
+    }
+    update() {
+        // Move
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Mouse interaction - repel from mouse
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const distSq = dx*dx + dy*dy;
+        
+        if (distSq < mouseRadius * mouseRadius) {
+            const dist = Math.sqrt(distSq);
+            const push = (mouseRadius - dist) / mouseRadius * 2;
+            const angle = Math.atan2(dy, dx);
+            this.vx += Math.cos(angle) * push * 0.5;
+            this.vy += Math.sin(angle) * push * 0.5;
+        }
+
+        // Friction
+        this.vx *= 0.98;
+        this.vy *= 0.98;
+
+        // Keep within bounds
+        if (this.x < 0 || this.x > width) this.vx *= -1;
+        if (this.y < 0 || this.y > height) this.vy *= -1;
+    }
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 70%, 60%, ${this.life})`;
+        ctx.fill();
+    }
+}
+
+// Initialize particles
+for (let i = 0; i < particleCount; i++) {
+    particles.push(new Particle());
+}
+
+// Animation loop
+function animate() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; // Creates trails
+    ctx.fillRect(0, 0, width, height);
+
+    particles.forEach(p => {
+        p.update();
+        p.draw();
+    });
+
+    requestAnimationFrame(animate);
+}
+
+// Start!
+animate();
+</script>
+</body>
+</html>
