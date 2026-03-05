@@ -115,11 +115,17 @@
 
             // Assign colors (mostly blue, some purple/white)
             if (Math.random() > 0.95) {
-                colors.setHex(color3.getHex());
+                colors[i3] = color3.r;
+                colors[i3 + 1] = color3.g;
+                colors[i3 + 2] = color3.b;
             } else if (Math.random() > 0.85) {
-                colors.setHex(color2.getHex());
+                colors[i3] = color2.r;
+                colors[i3 + 1] = color2.g;
+                colors[i3 + 2] = color2.b;
             } else {
-                colors.setHex(color1.getHex());
+                colors[i3] = color1.r;
+                colors[i3 + 1] = color1.g;
+                colors[i3 + 2] = color1.b;
             }
         }
 
@@ -134,8 +140,25 @@
             opacity: 0.9,
             blending: THREE.AdditiveBlending, // Makes colors light up when overlapping
             depthWrite: false,
-            map: createGlowingTexture() // Create a simple emissive texture in code logic below? No, use standard point for performance.
+            map: createGlowingTexture()
         });
+
+        // Helper function to create a circular glow texture
+        function createGlowingTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+            gradient.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 64, 64);
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
 
         const particles = new THREE.Points(geometry, material);
         scene.add(particles);
@@ -150,6 +173,14 @@
             // Map mouse position from screen to world space (rough approximation for the camera setup)
             targetMouseX = (event.clientX - window.innerWidth / 2) * 0.1;
             targetMouseY = -(event.clientY - window.innerHeight / 2) * 0.1;
+        });
+
+        // Click to reset interactivity
+        document.addEventListener('mousedown', () => {
+            targetMouseX = 0;
+            targetMouseY = 0;
+            mouseX = 0;
+            mouseY = 0;
         });
 
         // Handle window resizing
