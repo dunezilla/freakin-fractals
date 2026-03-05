@@ -4,8 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏛️ Collaborative Infinite Canvas</title>
+    <title>NEON FRACTAL NEBULA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --accent: #4fc3f7;
+            --secondary: #6c5ce7;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,439 +24,328 @@
 
         body {
             overflow: hidden;
-            background: #1a1a2e;
+            background: #020205;
             color: #fff;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Outfit', sans-serif;
         }
 
         canvas {
             display: block;
+            outline: none;
         }
 
-        .controls {
+        .ui-overlay {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 100;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 8px;
-            backdrop-filter: blur(4px);
-            min-width: 260px;
-        }
-
-        .controls h3 {
-            margin-bottom: 10px;
-            color: #4fc3f7;
-            font-size: 1.2em;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
-
-        button {
-            padding: 6px 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-            background: #3742fa;
-            color: white;
-        }
-
-        button:hover {
-            background: #6c5ce7;
-            transform: translateY(-1px);
-        }
-
-        .note-editor {
-            display: flex;
-            gap: 8px;
-            margin: 8px 0;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 6px;
-            border: none;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            font-size: 13px;
-        }
-
-        .info {
-            font-size: 0.75em;
-            color: #aaa;
-            margin-top: 8px;
-            line-height: 1.4;
-        }
-
-        .info span {
-            color: #74b9ff;
-            font-weight: bold;
-        }
-
-        .user-indicator {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            gap: 12px;
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.6);
-            border-radius: 4px;
-            font-size: 0.75em;
-            z-index: 100;
-        }
-
-        .user-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 4px;
-            vertical-align: middle;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 0.7;
-            }
-
-            50% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0.7;
-            }
-        }
-
-        .instructions {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 8px;
-            font-size: 0.8em;
-            backdrop-filter: blur(4px);
-            z-index: 100;
-            line-height: 1.5;
-        }
-
-        .toast {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #ff7675;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            opacity: 0;
+            inset: 0;
             pointer-events: none;
-            transition: opacity 0.3s;
-            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px;
+            z-index: 100;
         }
 
-        input[type="color"] {
-            border: none;
-            width: 40px;
-            height: 36px;
-            cursor: pointer;
-            padding: 0;
-            background: none;
-            border-radius: 4px;
-            overflow: hidden;
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        header {
+            max-width: fit-content;
+        }
+
+        h1 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 8px;
+            opacity: 0.8;
+        }
+
+        .tagline {
+            font-size: 2.5rem;
+            font-weight: 300;
+            line-height: 1.1;
+        }
+
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .controls-hint {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            line-height: 1.8;
+        }
+
+        .controls-hint span {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .stats {
+            text-align: right;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: var(--accent);
+            opacity: 0.6;
+        }
+
+        /* Interaction feedback */
+        .cursor-trail {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            pointer-events: none;
+            mix-blend-mode: screen;
+            z-index: 999;
+            filter: blur(2px);
         }
     </style>
 </head>
 
 <body>
 
-    <div class="controls">
-        <h3>🏛️ Collaborative Infinite Canvas</h3>
+    <div class="ui-overlay">
+        <header class="glass-panel">
+            <h1>Generative Experience</h1>
+            <div class="tagline">NEON FRACTAL<br>NEBULA</div>
+        </header>
 
-        <div class="btn-group">
-            <button onclick="spawnShape('box')">🧱 Wall (Box)</button>
-            <button onclick="spawnShape('sphere')">🎈 Sphere</button>
-            <button onclick="spawnShape('cylinder')">🔮 Cylinder</button>
-            <button onclick="spawnShape('cone')">⬜ Cone</button>
-        </div>
-
-        <div class="note-editor">
-            <input type="text" id="noteText" placeholder="Note text..." maxlength="40">
-            <input type="color" id="noteColor" oninput="changeNoteColor(this.value)" value="#2d3436">
-            <button onclick="addNote()">📌 Add Note</button>
-        </div>
-
-        <div class="info">
-            Objects: <span id="objCount">0</span><br>
-            Notes: <span id="noteCount">0</span><br>
-            Mode: <span id="modeLabel">Pan + Zoom (WASD to move)</span>
-        </div>
+        <footer>
+            <div class="glass-panel controls-hint">
+                <span>Move</span> to disturb the flow<br>
+                <span>Scroll</span> to warp dimensions<br>
+                <span>Click</span> to pulse the core
+            </div>
+            <div class="stats">
+                CORE_STABILITY: 98.4%<br>
+                FLUID_DENSITY: 80.0K<br>
+                NEURAL_LINK: ACTIVE
+            </div>
+        </footer>
     </div>
 
-    <div class="instructions">
-        <strong>Controls:</strong><br>
-        🔑 Left Click: Spawn/Interact<br>
-        🖱️ Right Click: Rotate Camera<br>
-        🖱️ Middle Mouse / Space+Click: Pan<br>
-        WASD: Move Camera<br>
-        Shift+WASD: Move Faster<br>
-        Scroll: Zoom In/Out<br>
-        📌 Add Notes to share ideas!<br>
-        <span style="color:#74b9ff">💡 Simulated multiplayer mode!</span>
-    </div>
+    <!-- Import Map for Post-processing & Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 
-    <div class="user-indicator" id="userIndicators">
-        <span style="color: #ff7675; font-weight: bold;">You</span><br>
-        <span style="display: none;" id="simulatedUser1"><span class="user-dot" style="background: #74b9ff;"></span>User
-            1</span><br>
-        <span style="display: none;" id="simulatedUser2"><span class="user-dot" style="background: #55efc4;"></span>User
-            2</span>
-    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-    <div class="toast" id="toast"></div>
+        // --- Configuration ---
+        const CONFIG = {
+            bloom: {
+                strength: 1.5,
+                radius: 0.4,
+                threshold: 0.1
+            },
+            nebula: {
+                count: 80000,
+                radius: 100,
+                color1: 0x4fc3f7,
+                color2: 0x6c5ce7
+            },
+            core: {
+                detail: 128,
+                radius: 10
+            }
+        };
 
-    <!-- Three.js from CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <script>
-        // ========== SCENE SETUP ==========
+        // --- Scene Setup ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.FogExp2(0x1a1a2e, 0.025);
-
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 50;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ReinhardToneMapping;
         document.body.appendChild(renderer.domElement);
 
-        // ========== LIGHTING ==========
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
+        // --- Post-Processing ---
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight),
+            CONFIG.bloom.strength, CONFIG.bloom.radius, CONFIG.bloom.threshold);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7);
-        scene.add(directionalLight);
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
 
-        // ========== GRID & FLOOR ==========
-        const gridHelper = new THREE.GridHelper(1000, 25, 0x465f7a, 0x2d3436);
-        scene.add(gridHelper);
-
-        const planeGeo = new THREE.PlaneGeometry(2000, 2000);
-        const planeMat = new THREE.MeshPhongMaterial({
-            color: 0x1e2835, side: THREE.DoubleSide
+        // --- Core: Generative Fractal-like Structure ---
+        const coreGeometry = new THREE.IcosahedronGeometry(CONFIG.core.radius, 15);
+        const coreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.1
         });
-        const floor = new THREE.Mesh(planeGeo, planeMat);
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
+        const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+        scene.add(coreMesh);
 
-        // ========== OBJECT MANAGEMENT ==========
-        const objects = [];
+        // Internal Glow Sphere
+        const innerGlowGeo = new THREE.SphereGeometry(CONFIG.core.radius * 0.8, 32, 32);
+        const innerGlowMat = new THREE.MeshBasicMaterial({ color: CONFIG.nebula.color1 });
+        const innerGlow = new THREE.Mesh(innerGlowGeo, innerGlowMat);
+        scene.add(innerGlow);
 
-        function spawnShape(type) {
-            let geometry, material, mesh;
+        // --- Nebula: Reactive Particle System ---
+        const nebulaGeo = new THREE.BufferGeometry();
+        const nebulaPositions = new Float32Array(CONFIG.nebula.count * 3);
+        const nebulaColors = new Float32Array(CONFIG.nebula.count * 3);
+        const nebulaVelocities = new Float32Array(CONFIG.nebula.count * 3);
 
-            switch (type) {
-                case 'box':
-                    geometry = new THREE.BoxGeometry(2, 4, 2);
-                    material = new THREE.MeshStandardMaterial({
-                        color: Math.random() * 0xffffff + 1000000, // Random color
-                        roughness: 0.7, metalness: 0.3
-                    });
-                    break;
-                case 'sphere':
-                    geometry = new THREE.SphereGeometry(1.5, 32, 16);
-                    material = new THREE.MeshStandardMaterial({
-                        color: Math.random() * 0xffffff + 1000000,
-                        roughness: 0.4, metalness: 0.8
-                    });
-                    break;
-                case 'cylinder':
-                    geometry = new THREE.CylinderGeometry(1, 1, 3, 24);
-                    material = new THREE.MeshStandardMaterial({
-                        color: Math.random() * 0xffffff + 1000000,
-                        roughness: 0.6, metalness: 0.5
-                    });
-                    break;
-                case 'cone':
-                    geometry = new THREE.ConeGeometry(1.2, 3.5, 16);
-                    material = new THREE.MeshStandardMaterial({
-                        color: Math.random() * 0xffffff + 1000000,
-                        roughness: 0.5, metalness: 0.7
-                    });
-                    break;
-            }
+        const color1 = new THREE.Color(CONFIG.nebula.color1);
+        const color2 = new THREE.Color(CONFIG.nebula.color2);
 
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+        for (let i = 0; i < CONFIG.nebula.count; i++) {
+            const i3 = i * 3;
+            // Spherical distribution
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = Math.pow(Math.random(), 0.5) * CONFIG.nebula.radius;
 
-            // Random position within view
-            const xOffset = (Math.random() - 0.5) * 30;
-            const yOffset = (Math.random() - 0.5) * 10;
-            const zOffset = (Math.random() - 0.5) * 20;
+            nebulaPositions[i3] = r * Math.sin(phi) * Math.cos(theta);
+            nebulaPositions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            nebulaPositions[i3 + 2] = r * Math.cos(phi);
 
-            mesh.position.set(xOffset, 1 + Math.random() * 2, zOffset);
+            const mixedColor = color1.clone().lerp(color2, Math.random());
+            nebulaColors[i3] = mixedColor.r;
+            nebulaColors[i3 + 1] = mixedColor.g;
+            nebulaColors[i3 + 2] = mixedColor.b;
 
-            scene.add(mesh);
-            objects.push(mesh);
-
-            updateStats();
-            showToast(`Added a ${type}`);
+            nebulaVelocities[i3] = (Math.random() - 0.5) * 0.1;
+            nebulaVelocities[i3 + 1] = (Math.random() - 0.5) * 0.1;
+            nebulaVelocities[i3 + 2] = (Math.random() - 0.5) * 0.1;
         }
 
-        function addNote() {
-            const text = document.getElementById('noteText').value;
-            const color = document.getElementById('noteColor').value;
+        nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPositions, 3));
+        nebulaGeo.setAttribute('color', new THREE.BufferAttribute(nebulaColors, 3));
 
-            if (!text) return;
-
-            // Create note geometry
-            const width = 3, height = 2;
-            const geo = new THREE.PlaneGeometry(width, height);
-            const mat = new THREE.MeshBasicMaterial({
-                color: parseInt(color),
-                transparent: true,
-                opacity: 0.95
-            });
-
-            const note = new THREE.Mesh(geo, mat);
-
-            // Add text using canvas sprite
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = width * window.devicePixelRatio;
-            canvas.height = height * window.devicePixelRatio;
-
-            context.font = "bold 14px Arial";
-            context.fillStyle = "#333";
-            context.textAlign = "center";
-            context.textBaseline = "middle";
-
-            // Simple text wrapping
-            const lines = text.split('\n');
-            lines.forEach((line, i) => {
-                const words = line.split(' ');
-                let currentLine = '';
-                words.forEach((word, j) => {
-                    const testStr = (currentLine + ' ' + word).length;
-                    if (testStr > 32 && j > 0) {
-                        lines[i] = currentLine + '\n' + words.slice(j).join(' ');
-                        currentLine = words[j];
-                    } else {
-                        currentLine += (currentLine ? ' ' : '') + word;
-                    }
-                });
-                if (currentLine && i === 0) lines[i] = currentLine;
-            });
-
-            let yOffset = -height / 2 + 5;
-            lines.forEach(line => {
-                context.fillText(line, width / 2, yOffset);
-                yOffset -= 14;
-            });
-
-            const texture = new THREE.CanvasTexture(canvas);
-            const spriteMat = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(spriteMat);
-
-            // Combine note and text
-            const combinedMesh = new THREE.Group();
-            combinedMesh.add(note);
-            combinedMesh.add(sprite);
-
-            // Position randomly in view
-            const xOffset = (Math.random() - 0.5) * 30;
-            const zOffset = (Math.random() - 0.5) * 20;
-            combinedMesh.position.set(xOffset, 1 + Math.random() * 2, zOffset);
-
-            scene.add(combinedMesh);
-            objects.push(combinedMesh);
-
-            document.getElementById('noteText').value = '';
-            updateStats();
-        }
-
-        // ========== CAMERA CONTROLS ==========
-        camera.position.set(0, 3, 15);
-        camera.lookAt(0, 0, 0);
-
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        renderer.domElement.addEventListener('mousedown', (event) => {
-            if (event.button === 1 || event.button === 2) { // Middle or right click to pan
-                isDragging = true;
-            }
+        const nebulaMaterial = new THREE.PointsMaterial({
+            size: 0.1,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.5,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
         });
 
-        renderer.domElement.addEventListener('mouseup', () => {
-            isDragging = false;
+        const nebulaPoints = new THREE.Points(nebulaGeo, nebulaMaterial);
+        scene.add(nebulaPoints);
+
+        // --- Mouse Interaction ---
+        let mouseX = 0, mouseY = 0;
+        let targetMouseX = 0, targetMouseY = 0;
+        let clickForce = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            targetMouseX = (e.clientX - window.innerWidth / 2) / 100;
+            targetMouseY = (e.clientY - window.innerHeight / 2) / 100;
         });
 
-        renderer.domElement.addEventListener('mousemove', (event) => {
-            if (!isDragging) return;
-
-            const deltaX = event.movementX || 0;
-            const deltaY = event.movementY || 0;
-
-            // Pan the camera when dragging
-            camera.position.x += deltaX * 0.01;
-            camera.position.z -= deltaY * 0.01;
-
-            previousMousePosition.x = -deltaX;
-            previousMousePosition.y = -deltaY;
+        window.addEventListener('mousedown', () => {
+            clickForce = 5;
         });
 
-        renderer.domElement.addEventListener('click', (event) => {
-            // Left click spawns a box
-            if (event.button === 0) {
-                spawnShape('box');
-            } else if (event.button === 2) {
-                event.preventDefault();
-            }
-        });
-
-        // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // ========== ANIMATION LOOP ==========
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
 
-            // Smooth camera rotation
-            const centerX = -camera.position.x / Math.tan(Math.PI * 0.42);
-            const centerY = 2;
-            const distZ = 15;
+            // Smooth mouse
+            mouseX += (targetMouseX - mouseX) * 0.05;
+            mouseY += (targetMouseY - mouseY) * 0.05;
 
-            camera.lookAt(centerX, centerY, distZ);
+            // Rotate Core
+            coreMesh.rotation.y += 0.005;
+            coreMesh.rotation.z += 0.002;
 
-            renderer.render(scene, camera);
+            // Morph Core Vertices (Pseudo-generative)
+            const posAttr = coreMesh.geometry.attributes.position;
+            for (let i = 0; i < posAttr.count; i++) {
+                const vec = new THREE.Vector3().fromBufferAttribute(posAttr, i);
+                vec.normalize().multiplyScalar(CONFIG.core.radius +
+                    Math.sin(vec.x * 0.5 + time * 2) * 2 +
+                    Math.cos(vec.y * 0.5 + time * 1.5) * 2 +
+                    clickForce * Math.sin(time * 10)
+                );
+                posAttr.setXYZ(i, vec.x, vec.y, vec.z);
+            }
+            posAttr.needsUpdate = true;
+
+            clickForce *= 0.95; // Decay click force
+
+            // Inner Glow pulse
+            innerGlow.scale.setScalar(1 + Math.sin(time * 3) * 0.1 + clickForce * 0.1);
+            innerGlow.material.color.setHSL(0.5 + Math.sin(time * 0.5) * 0.1, 0.7, 0.5);
+
+            // Update Nebula
+            const positions = nebulaPoints.geometry.attributes.position.array;
+            for (let i = 0; i < CONFIG.nebula.count; i++) {
+                const i3 = i * 3;
+
+                // Spiral movement
+                const x = positions[i3];
+                const y = positions[i3 + 1];
+                const z = positions[i3 + 2];
+
+                positions[i3] += Math.sin(y * 0.05 + time) * 0.02 + mouseX * 0.1;
+                positions[i3 + 1] += Math.cos(x * 0.05 + time) * 0.02 - mouseY * 0.1;
+
+                // Drift back if too far
+                const dist = Math.sqrt(x * x + y * y + z * z);
+                if (dist > CONFIG.nebula.radius * 1.5) {
+                    positions[i3] *= 0.99;
+                    positions[i3 + 1] *= 0.99;
+                    positions[i3 + 2] *= 0.99;
+                }
+            }
+            nebulaPoints.geometry.attributes.position.needsUpdate = true;
+            nebulaPoints.rotation.y += 0.001;
+
+            // Camera movement
+            camera.position.x += (mouseX * 20 - camera.position.x) * 0.05;
+            camera.position.y += (-mouseY * 20 - camera.position.y) * 0.05;
+            camera.lookAt(0, 0, 0);
+
+            composer.render();
         }
 
-        animate(); // Start the loop
-        updateStats(); // Initial stat update
+        animate();
     </script>
 </body>
 
